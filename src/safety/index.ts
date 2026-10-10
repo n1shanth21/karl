@@ -1,11 +1,11 @@
 // SHARED CONTRACT for safety. Owner of the implementation: Aarush (backend branch).
 // Agent calls these before listing an item and before relaying any message.
-// Phase 0 stubs allow everything. TODO(Aarush, Phase B1): real rules + tests.
 
 import type { ListingDraft, SafetyVerdict } from "../types";
 import { isBanned as isBannedUser } from "./bans";
 import { checkPhoto, type ImageClassifier, type ImageVerdict } from "./image";
 import { checkItem } from "./prohibited";
+import { allowAt } from "./rateLimit";
 import { scanText } from "./scan";
 
 /** Block prohibited items (alcohol, drugs, meds, weapons, vapes, tickets, digital accounts, counterfeit, adult). */
@@ -25,9 +25,12 @@ export async function scanRelayMessage(text: string): Promise<SafetyVerdict> {
   return scanText(text);
 }
 
-/** Per-user rate limit. Returns false if this user should be throttled right now. */
-export function allowMessage(_userId: string): boolean {
-  return true;
+/**
+ * Per-user rate limit. Returns false if this user should be throttled right now.
+ * Max LIMITS.rateLimitMessagesPer10Min messages in any 10 minutes. `now` is only passed by tests.
+ */
+export function allowMessage(userId: string, now: number = Date.now()): boolean {
+  return allowAt(userId, now);
 }
 
 /**

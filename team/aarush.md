@@ -30,8 +30,8 @@ You keep Karl safe and running: the scam and prohibited-item checks, the every-m
 - [x] `scanRelayMessage(text)`: fast regex rules first. **block**: phone numbers, emails, social handles (@…, "my insta"), URLs, gift cards, wire/crypto. **warn**: pay first, deposit, "venmo me now", "send half upfront", pressure ("only today", "text me on whatsapp"). The reason is in Karl's voice and shown to the user. Gemini only for borderline cases (optional).
 - [x] `checkProhibited(draft)`: alcohol, drugs, vapes, meds, weapons, tickets (UNC bans student-ticket resale), digital accounts/licenses, counterfeit → block with a friendly reason
 - [x] `checkImage(bytes, mimeType, userId)`: Gemini labels every inbound photo. explicit → block + ban sender; suggestive or check failed → block photo only. `isBanned(userId)`: in-memory ban list (restart clears it)
-- [ ] `allowMessage(userId)`: max `LIMITS.rateLimitMessagesPer10Min` per user (in-memory sliding window)
-- [ ] `tests/backend/safety.test.ts`: ≥15 scam messages + ≥15 normal ones ("omw", "running 5 late", "can we do the Pit instead", "is it still available", "$40 ok?"). **Normal messages must never be blocked.**
+- [x] `allowMessage(userId)`: max `LIMITS.rateLimitMessagesPer10Min` per user (in-memory sliding window)
+- [x] `tests/backend/safety.test.ts`: ≥15 scam messages + ≥15 normal ones ("omw", "running 5 late", "can we do the Pit instead", "is it still available", "$40 ok?"). **Normal messages must never be blocked.**
 **Finish line:** tests pass; tell Nishanth in chat it's merged-ready.
 
 ## Phase B2: timers · 8:00–11:30 PM
