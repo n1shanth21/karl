@@ -19,7 +19,7 @@ You own everything the judges see that isn't a text message: the live dashboard 
 **Finish line:** Himagna's seed script loads it. ✅ (data branch 347e557)
 
 ## Phase W3: real data + pitch · 11:30 PM–3:00 AM
-- [ ] Point `NEXT_PUBLIC_API_URL` at the Railway URL; counters animate on change; a "listings per hour" sparkline from `listingsPerHour`
+- [x] Point `NEXT_PUBLIC_API_URL` at the Railway URL; counters animate on change; a "listings per hour" sparkline from `listingsPerHour`
 - [ ] Pitch deck (5–6 slides): problem → Karl in one line → live demo → why iMessage (no app, Karl texts *you*) → tech (Photon Spectrum, Gemini, Tiger Data) → traction from HackNC numbers → roadmap (UNC email verify, move-out week, tickets once policy allows)
 - [ ] Devpost draft: what it does, how we built it, challenges (no group chats on Pro → masked relay), what's next. Tracks: General, Photon, Gemini, Tiger Data, .Tech domain.
 

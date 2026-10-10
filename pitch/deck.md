@@ -24,11 +24,11 @@ Selling a mini fridge at UNC usually means posting it in a few different group c
 
 **On-slide text**
 - **Karl is the campus marketplace that lives in iMessage.**
-- One number. No app. No browsing.
+- Just text. No app. No browsing.
 - Karl texts *you* when the thing you want shows up.
 
 **Speaker notes (~20 s)**
-Karl is a phone number UNC students text. Text a photo to sell. Text what you're looking for to buy. If nothing matches yet, Karl remembers, and texts you the moment someone lists it. Facebook Marketplace makes you search. Karl comes to you.
+Karl is a campus marketplace you just text. Text a photo to sell. Text what you're looking for to buy. If nothing matches yet, Karl remembers, and texts you the moment someone lists it. Facebook Marketplace makes you search. Karl comes to you.
 
 **Visual:** a single iMessage thread mockup: "need a desk lamp under $20" -> "nothing yet, i'll text you."
 
@@ -41,7 +41,7 @@ Karl is a phone number UNC students text. Text a photo to sell. Text what you're
 - (QR code: text Karl)
 
 **Speaker notes (~2 min; cue points follow PLAN.md demo script)**
-1. Hook: "Students already buy and sell across a dozen group chats. Karl is one number that remembers what you want."
+1. Hook: "Students already buy and sell across a dozen group chats. Karl is one text away, and it remembers what you want."
 2. Want: judge texts "need a desk lamp under $20." Karl says nothing yet, it'll text.
 3. Sell: teammate sends a lamp photo, Karl drafts "desk lamp, good condition, $15. post it?", teammate hearts it.
 4. Proactive match: the judge's phone buzzes with the lamp.
@@ -108,4 +108,4 @@ Since going live at HackNC, {{usersTotal}} people have texted Karl, {{listedTota
 | `{{listedTotal}}` | dashboard "listed" counter |
 | `{{soldTotal}}` | dashboard "sold" counter |
 | `{{usersTotal}}` | dashboard "students using Karl" counter |
-| Karl's number / QR | Aarush's production Photon line [VERIFY once live] |
+| QR | sign-up page https://karl-production.up.railway.app/signup (each person gets their own Karl line) |
