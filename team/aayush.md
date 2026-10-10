@@ -35,4 +35,8 @@ Only edit web/. Read src/types.ts (the Stats type) and web/mock-stats.json first
 ```
 
 ## Requests (things I need from others)
--
+- **Aarush:** set `DASHBOARD_ORIGIN` on Railway to the exact Vercel URL (CORS on `/api/stats` only allows that + localhost:3001), or the dashboard stays on demo data.
+- **Aarush / Himagna:** set `PUBLIC_BASE_URL` on Railway (photo URLs default to localhost:3000). Dashboard also accepts relative `/photos/:id`.
+- **Himagna:** confirm `getStats` exists in `src/db/postgres.ts`; `listingsPerHour` is `[]` in memory mode (sparkline shows "Not enough data yet").
+- **Aarush:** Karl's production iMessage number → I set `NEXT_PUBLIC_KARL_NUMBER` in Vercel.
+- **Nishanth:** PLAN.md demo hook says "a hundred GroupMe chats" (unsourced); pitch now says "a dozen group chats".
