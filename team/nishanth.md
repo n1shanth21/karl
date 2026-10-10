@@ -9,7 +9,7 @@ You build Karl's brain and everything a user experiences in iMessage: the inboun
 - [x] Contracts: types, bus, config, Db interface, matching/safety/jobs/http stubs, memory DB
 - [x] Terminal round-trip: "hey, it's Karl 👋 (setup works)"
 - [x] Ownership guard hooks
-- [ ] **Access test on a real phone:** your Photon project, `MESSAGING_MODE=imessage`, text the line from your phone (in Users), then from a phone NOT in Users. Write the result in PLAN.md.
+- [x] **Access test on a real phone:** your Photon project, `MESSAGING_MODE=imessage`, text the line from your phone (in Users), then from a phone NOT in Users. Write the result in PLAN.md.
 
 ## Phase A1: inbound pipeline + Gemini brain + sell flow · 5:30–8:00 PM
 - [x] Inbound: debounce bursts (2 s per user) and process them together; `stop`/`start`/`help`; call `allowMessage()`
