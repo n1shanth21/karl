@@ -12,30 +12,30 @@ You build Karl's brain and everything a user experiences in iMessage: the inboun
 - [ ] **Access test on a real phone:** your Photon project, `MESSAGING_MODE=imessage`, text the line from your phone (in Users), then from a phone NOT in Users. Write the result in PLAN.md.
 
 ## Phase A1: inbound pipeline + Gemini brain + sell flow · 5:30–8:00 PM
-- [ ] Inbound: debounce bursts (2 s per user) and process them together; `stop`/`start`/`help`; call `allowMessage()`
-- [ ] Onboarding: first text → 2 short intro texts + ask first name → save it
-- [ ] `src/agent/systemPrompt.ts` (persona from config) + `src/agent/gemini.ts` + tool loop (Gemini picks a tool → run it → Gemini phrases the reply)
-- [ ] Photo handling: `content.read()` → HEIC→JPEG (`heif2jpeg`) → `db.savePhoto` → Gemini vision → `ListingDraft`
-- [ ] Tools `create_listing_draft`, `update_draft` (price/condition edits), `confirm_listing` (also accept ❤️ tapback on the draft message) → `checkProhibited` → status `active` → `onListingActivated`
-- [ ] Max 1 follow-up question, then: "mini fridge, good condition, $45. post it?"
-- [ ] Tests with mocked Gemini: photo → draft → confirm → active
+- [x] Inbound: debounce bursts (2 s per user) and process them together; `stop`/`start`/`help`; call `allowMessage()`
+- [x] Onboarding: first text → 2 short intro texts + ask first name → save it
+- [x] `src/agent/systemPrompt.ts` (persona from config) + `src/agent/gemini.ts` + tool loop (Gemini picks a tool → run it → Gemini phrases the reply)
+- [x] Photo handling: `content.read()` → HEIC→JPEG (`heif2jpeg`) → `db.savePhoto` → Gemini vision → `ListingDraft`
+- [x] Tools `create_listing_draft`, `update_draft` (price/condition edits), `confirm_listing` (also accept ❤️ tapback on the draft message) → `checkProhibited` → status `active` → `onListingActivated`
+- [x] Max 1 follow-up question, then: "mini fridge, good condition, $45. post it?"
+- [x] Tests with mocked Gemini: photo → draft → confirm → active
 **Finish line (phone):** text a photo → draft + price → "yes" → listing is `active` (check `/api/stats`).
 
 ## Phase A2: buy, wants, match, relay · 8:00–11:30 PM
-- [ ] `search_listings` → up to 3 results sent as photo + "**title** · $45" → buyer picks (number, name, or ❤️)
-- [ ] No results → `save_want` → `onWantCreated` → "i'll text you when one shows up"
-- [ ] `match_found` notification → text buyer the photo + "someone just listed …, want it?"
-- [ ] `propose_match` → seller asked (❤️ / yes) → `accepted` + `holdExpiresAt`, listing `held` → both told
-- [ ] Meetup: propose 2 options from `MEETUP_SPOTS` (native poll if it works, else text) → `meetup_set`
-- [ ] **Relay** (plain code, not Gemini): 1 active match → relay logistics; several → use threaded reply target, else ask "which one, the fridge or the lamp?"; messages to Karl ("cancel", "list another") handled by Karl. Every relay: `scanRelayMessage()` → `markdown("**Maya · mini fridge**\n…")`
-- [ ] Two-user test (simulated spaces) of the full loop
+- [x] `search_listings` → up to 3 results sent as photo + "**title** · $45" → buyer picks (number, name, or ❤️)
+- [x] No results → `save_want` → `onWantCreated` → "i'll text you when one shows up"
+- [x] `match_found` notification → text buyer the photo + "someone just listed …, want it?"
+- [x] `propose_match` → seller asked (❤️ / yes) → `accepted` + `holdExpiresAt`, listing `held` → both told
+- [x] Meetup: propose 2 options from `MEETUP_SPOTS` (native poll if it works, else text) → `meetup_set` (text options; native poll not used)
+- [x] **Relay** (plain code, not Gemini): 1 active match → relay logistics; several → use threaded reply target, else ask "which one, the fridge or the lamp?"; messages to Karl ("cancel", "list another") handled by Karl. Every relay: `scanRelayMessage()` → `markdown("**Maya · mini fridge**\n…")`
+- [x] Two-user test (simulated spaces) of the full loop
 **Finish line (two phones):** want saved → listing posted → buyer pinged → accept → "omw" relayed with label → meetup set.
 
 ## Phase A3: close-out + robustness · 11:30 PM–3:00 AM
-- [ ] `meetup_checkin_due` → "did it happen?" to both → both yes → `completed`, listing `sold`, pay-after-pickup reminder
-- [ ] `hold_expired` → tell both nicely, item back up
-- [ ] `my stuff` / cancel listing / cancel want
-- [ ] Gemini error/timeout → friendly fallback + retry; unclear photo → "can you send another angle?"
+- [x] `meetup_checkin_due` → "did it happen?" to both → both yes → `completed`, listing `sold`, pay-after-pickup reminder
+- [x] `hold_expired` → tell both nicely, item back up
+- [x] `my stuff` / cancel listing / cancel want
+- [x] Gemini error/timeout → friendly fallback + retry; unclear photo → "can you send another angle?"
 
 ## Phase AX: polish + demo · 3:00–8:00 AM
 - [ ] Persona pass over real transcripts (with Aayush's notes in `pitch/persona-notes.md`)
@@ -51,4 +51,5 @@ Before coding, read the Photon docs pages listed in CLAUDE.md that this step nee
 ```
 
 ## Requests (things I need from others)
--
+- Aarush: safety contract on `backend` (scanRelayMessage, checkProhibited, allowMessage, checkImage, isBanned) arrives at the 8 PM merge — inbound already calls allowMessage/scanRelayMessage/checkProhibited.
+- Himagna: keep `searchListings` / `onListingActivated` / `onWantCreated` signatures; agent relies on match_found firing after onListingActivated.

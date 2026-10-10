@@ -47,7 +47,12 @@ async function wantExpired({ wantId, buyerId }: BusEvents["want_expired"]) {
   if (want && buyer) await sendTo(buyer, `your search for ${want.queryText} expired, text me if you still need one`);
 }
 
+let registered = false;
+
+/** Safe to call more than once (tests do); handlers are only attached the first time. */
 export function registerNotifications(): void {
+  if (registered) return;
+  registered = true;
   bus.on("match_found", offerListing);
   bus.on("hold_expired", holdExpired);
   bus.on("meetup_checkin_due", meetupCheckin);
