@@ -35,8 +35,8 @@ You keep Karl safe and running: the scam and prohibited-item checks, the every-m
 **Finish line:** tests pass; tell Nishanth in chat it's merged-ready.
 
 ## Phase B2: timers · 8:00–11:30 PM
-- [ ] `tick(now)`: (1) `db.matchesWithExpiredHold(now)` → match `expired`, listing back to `active`, emit `hold_expired`; (2) `db.matchesDueForCheckin(now - delay)` → emit `meetup_checkin_due` **once per match** (track it, e.g. a Set or a match status change); (3) `db.openWantsExpiredBefore(now)` → `closed`, emit `want_expired`
-- [ ] `tests/backend/jobs.test.ts` with the memory DB and a fake `now`
+- [x] `tick(now)`: (1) `db.matchesWithExpiredHold(now)` → match `expired`, listing back to `active`, emit `hold_expired`; (2) `db.matchesDueForCheckin(now - delay)` → emit `meetup_checkin_due` **once per match** (track it, e.g. a Set or a match status change); (3) `db.openWantsExpiredBefore(now)` → `closed`, emit `want_expired`
+- [x] `tests/backend/jobs.test.ts` with the memory DB and a fake `now`
 **Finish line:** a test proves each event fires exactly once.
 
 ## Phase B3: deploy · 11:30 PM–1:00 AM (right after the 11:30 merge)
