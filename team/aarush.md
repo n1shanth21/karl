@@ -50,7 +50,7 @@ You keep Karl safe and running: the scam and prohibited-item checks, the every-m
 
 ## Phase BX · 1:00–8:00 AM
 - [ ] Watch Railway logs for errors; report bugs to the owner with the exact log line
-- [ ] Harden `/api/stats` (cache 3 s), make sure no phone or last name ever appears in any response
+- [x] Harden `/api/stats` (cache 3 s), make sure no phone or last name ever appears in any response
 
 ## Starter prompt (paste after `/clear`)
 ```
