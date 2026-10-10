@@ -1,6 +1,6 @@
 # Aarush: Backend & Safety (branch `backend`) · 3rd hardest role
 
-You keep Karl safe and running: the scam and prohibited-item checks, the every-minute timers, the HTTP server for the dashboard and photos, and the Railway deployment that keeps Karl live all night. **Your Photon project is production.**
+You keep Karl safe and running: the scam and prohibited-item checks, the every-minute timers, the HTTP server for the dashboard and photos, and the Railway deployment that keeps Karl live all night. **Production Photon project = Nishanth's NEW project** (keys only in Railway Variables; my old project is retired).
 
 **You own:** `src/safety/`, `src/jobs/`, `src/http/`, `tests/backend/`, `railway.json`, `team/aarush.md`.
 **Contract you implement:** `src/safety/index.ts` (`checkProhibited`, `scanRelayMessage`, `allowMessage`), `src/jobs/index.ts` (`tick`, `startJobs`), `src/http/index.ts` (`startHttp`). Keep the signatures.
@@ -17,7 +17,7 @@ You keep Karl safe and running: the scam and prohibited-item checks, the every-m
 | M4 | 9:30 PM | `tick`: expired holds → match `expired`, listing `active`, `hold_expired` emitted | `tests/backend/jobs.test.ts` with a fake `now` |
 | M5 | 11:00 PM | `tick`: meetup check-ins fire **exactly once** per match + want expiry → `want_expired` | test runs `tick` twice and sees one event |
 | M6 | 11:25 PM | **Timers done → ready for Merge #2** | pushed; told Nishanth |
-| M7 | 12:30 AM | **Karl live on Railway** (B3) with my Photon project | `/health` OK on the Railway URL; a real text gets a reply that shows in Railway logs |
+| M7 | 12:30 AM | **Karl live on Railway** (B3) with Nishanth's new Photon project | `/health` OK on the Railway URL; a real text gets a reply that shows in Railway logs |
 | M8 | 1:00 AM | Testers' and judges' phones added under Photon → Users; Aayush has the Railway URL | Aayush's dashboard shows real numbers |
 | M9 | 3:00 AM | `/api/stats` cached 3 s; a test proves no phone number or last name appears in any response | test passes; pushed for Merge #3 |
 | M10 | 6:00 AM | Railway logs clean for the demo path; pushed for the final merge | no errors in the last hour of logs |
@@ -40,9 +40,11 @@ You keep Karl safe and running: the scam and prohibited-item checks, the every-m
 **Finish line:** a test proves each event fires exactly once.
 
 ## Phase B3: deploy · 11:30 PM–1:00 AM (right after the 11:30 merge)
-- [ ] Railway: deploy `main`, start command `bun src/index.ts`, env vars from `.env.example` (`MESSAGING_MODE=imessage`, `DB_MODE=postgres`, your Photon creds, `PUBLIC_BASE_URL` = Railway URL, `DASHBOARD_ORIGIN` = Vercel URL)
+- [ ] Railway: deploy `main`, start command `bun src/index.ts`, env vars from `.env.example` (`MESSAGING_MODE=imessage`, `DB_MODE=postgres`, Photon creds from Nishanth's new project, `PUBLIC_BASE_URL` = Railway URL, `DASHBOARD_ORIGIN` = Vercel URL)
 - [ ] `/health` OK; text the line, confirm the reply comes from Railway logs
-- [ ] **From now on nobody runs iMessage mode on your Photon project from a laptop**
+- [ ] **Nobody runs iMessage mode with the production Photon keys from a laptop** (Nishanth uses a separate project for local tests)
+- [ ] Railway `DB_MODE=memory` until `origin/data` (Himagna's postgres code) is merged to `main`, then switch to `postgres`. Tiger tables already exist (checked 2026-10-10)
+- [x] `railway.json`: start command, `/health` healthcheck, restart on failure, no deploy overlap (avoids double replies)
 - [ ] If the access test showed unregistered phones can't text in: `POST /signup` (phone → Photon Dashboard API adds them to Users) and tell Aayush to link it
 - [ ] Post the number in the HackNC Discord ("sell your extra swag, snacks, chargers to other hackers")
 
