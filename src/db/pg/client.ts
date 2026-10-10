@@ -55,3 +55,12 @@ export async function insertEvent(
     console.error(`[db] logEvent ${type} failed`, err);
   }
 }
+
+/**
+ * Public link to a stored photo (served by GET /photos/:id). Adds https:// if PUBLIC_BASE_URL was set
+ * without a scheme (e.g. "karl-production.up.railway.app"), which browsers would treat as a relative path.
+ */
+export function photoUrl(baseUrl: string, photoId: string): string {
+  const base = /^https?:\/\//i.test(baseUrl) ? baseUrl : `https://${baseUrl}`;
+  return `${base.replace(/\/+$/, "")}/photos/${photoId}`;
+}

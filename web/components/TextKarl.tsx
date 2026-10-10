@@ -2,17 +2,17 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 
-const NUMBER = process.env.NEXT_PUBLIC_KARL_NUMBER;
-// iOS wants "sms:+19195551234&body=..." (digits and + only; spaces/dashes break some scanners).
-// Karl is iMessage-only, so we use the iOS form.
-const SMS_URL = NUMBER ? `sms:${NUMBER.replace(/[^\d+]/g, "")}&body=hi%20karl` : null;
+// There is no single Karl number: Photon gives each person their own Karl line, and
+// phones that haven't signed up are blocked. So the QR opens the sign-up page, which
+// adds the person and shows "text karl at <their number>".
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://karl-production.up.railway.app";
+const SIGNUP_URL = `${API_URL}/signup`;
 
 export default function TextKarl() {
   const [qr, setQr] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!SMS_URL) return;
-    QRCode.toDataURL(SMS_URL, { margin: 1, width: 440 })
+    QRCode.toDataURL(SIGNUP_URL, { margin: 1, width: 440 })
       .then(setQr)
       .catch(() => setQr(null));
   }, []);
@@ -20,14 +20,16 @@ export default function TextKarl() {
   return (
     <div className="text-karl">
       <h2>Text Karl</h2>
-      <div className="phone">{SMS_URL ? <a href={SMS_URL}>{NUMBER}</a> : "(coming soon)"}</div>
+      <div className="phone">
+        <a href={SIGNUP_URL}>get your karl number →</a>
+      </div>
       {qr ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img className="qr" src={qr} alt="QR code to text Karl" width={160} height={160} />
+        <img className="qr" src={qr} alt="QR code to sign up for Karl" width={160} height={160} />
       ) : (
-        <div className="qr qr-empty">QR soon</div>
+        <div className="qr qr-empty" />
       )}
-      <p className="muted">Send a photo to sell. Say what you need to buy.</p>
+      <p className="muted">scan to get your karl number. then send a photo to sell, or say what you need.</p>
     </div>
   );
 }
