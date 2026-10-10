@@ -1,6 +1,8 @@
 // Every-minute timers. Owner: Aarush (backend branch).
 // Jobs never send texts. They update the DB and EMIT bus events; the agent sends the texts.
 
+import { config } from "../config";
+import { runBackfill } from "./backfill";
 import { dueCheckins, expireHolds, expireWants } from "./timers";
 
 let running = false;
@@ -23,5 +25,7 @@ export async function tick(now = new Date()): Promise<void> {
 
 export function startJobs(): void {
   setInterval(() => tick().catch((err) => console.error("[jobs] tick failed", err)), 60_000);
-  console.log("[jobs] scheduler started (every 60s)");
+  // Startup backfill already runs in src/index.ts; this catches anything that misses Gemini later.
+  if (config.dbMode === "postgres") setInterval(() => void runBackfill(), 5 * 60_000);
+  console.log("[jobs] scheduler started (tick every 60s, backfill every 5 min in postgres mode)");
 }

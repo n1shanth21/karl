@@ -44,6 +44,7 @@ You keep Karl safe and running: the scam and prohibited-item checks, the every-m
 - [ ] `/health` OK; text the line, confirm the reply comes from Railway logs
 - [ ] **Nobody runs iMessage mode with the production Photon keys from a laptop** (Nishanth uses a separate project for local tests)
 - [ ] Railway `DB_MODE=memory` until `origin/data` (Himagna's postgres code) is merged to `main`, then switch to `postgres`. Tiger tables already exist (checked 2026-10-10)
+- [x] `backfillEmbeddings()` every 5 min (postgres mode), overlap-guarded, never throws (Himagna request)
 - [x] `railway.json`: start command, `/health` healthcheck, restart on failure, no deploy overlap (avoids double replies)
 - [x] `/signup` page + `POST /api/signup`: Spectrum API create shared user → shows that person's own Karl number (`assignedPhoneNumber`). 5/IP/hour; optional `SIGNUP_CODE` env. Dashboard QR should point at `https://karl-production.up.railway.app/signup`
 - [ ] Post the number in the HackNC Discord ("sell your extra swag, snacks, chargers to other hackers")
