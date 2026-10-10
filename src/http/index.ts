@@ -3,9 +3,10 @@
 
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { recentRuns } from "../agent/activity";
 import { config } from "../config";
 import { db } from "../db";
-import { getPublicStats } from "./publicStats";
+import { firstNameOnly, getPublicStats, scrubTitle } from "./publicStats";
 
 export const http = new Hono();
 
@@ -14,6 +15,17 @@ http.use("/api/*", cors({ origin: [config.dashboardOrigin, "http://localhost:300
 http.get("/health", (c) => c.json({ ok: true, name: config.agentName, mode: config.messagingMode, db: config.dbMode }));
 
 http.get("/api/stats", async (c) => c.json(await getPublicStats()));
+
+// Live pipeline steps for the demo dashboard. Same scrubbing as /api/stats.
+http.get("/api/activity", (c) =>
+  c.json(
+    recentRuns().map((run) => ({
+      ...run,
+      firstName: firstNameOnly(run.firstName),
+      itemTitle: run.itemTitle === null ? null : scrubTitle(run.itemTitle),
+    })),
+  ),
+);
 
 http.get("/photos/:id", async (c) => {
   const photo = await db.getPhoto(c.req.param("id"));

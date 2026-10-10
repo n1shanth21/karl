@@ -61,3 +61,19 @@ test("scrubTitle keeps normal titles untouched", () => {
   expect(scrubTitle("(919) 555 1234")).toBe("item");
   expect(scrubTitle("lamp see www.lamps.com")).toBe("lamp see");
 });
+
+test("/api/activity shows first names only and scrubbed titles", async () => {
+  const { startRun, setItem, resetActivityForTests } = await import("../../src/agent/activity");
+  resetActivityForTests();
+  const run = startRun("sell", "Maya Smith");
+  setItem(run, "Mini fridge call 919-555-1234");
+  const res = await http.request("/api/activity");
+  expect(res.status).toBe(200);
+  const body = await res.text();
+  expect(body).not.toContain("Smith");
+  expect(body).not.toContain("555");
+  const [first] = JSON.parse(body);
+  expect(first.firstName).toBe("Maya");
+  expect(first.itemTitle).toBe("Mini fridge call");
+  resetActivityForTests();
+});
