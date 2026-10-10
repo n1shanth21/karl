@@ -7,11 +7,11 @@ function env(name: string, fallback?: string): string {
   return value;
 }
 
-const messagingMode = env("MESSAGING_MODE", "terminal");
+const messagingMode = env("MESSAGING_MODE", "terminal").toLowerCase();
 if (!["terminal", "imessage", "both"].includes(messagingMode)) {
   throw new Error(`MESSAGING_MODE must be terminal, imessage, or both (got "${messagingMode}")`);
 }
-const dbMode = env("DB_MODE", "memory");
+const dbMode = env("DB_MODE", "memory").toLowerCase();
 if (!["memory", "postgres"].includes(dbMode)) {
   throw new Error(`DB_MODE must be memory or postgres (got "${dbMode}")`);
 }

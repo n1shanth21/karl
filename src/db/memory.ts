@@ -16,13 +16,19 @@ export function createMemoryDb(): Db {
   let photos = new Map<string, { bytes: Uint8Array; mimeType: string }>();
   let messages: StoredMessage[] = [];
   let seenMessageIds = new Set<string>();
-  let events: { ts: Date; type: string; listingId?: string }[] = [];
+  let events: { ts: Date; type: string; userId?: string; listingId?: string; payload?: Record<string, unknown> }[] = [];
+  // The db layer logs its own analytics events (same five as postgres); flows never call logEvent for these.
+  const record = (type: string, data: { userId?: string; listingId?: string; payload?: Record<string, unknown> }) =>
+    events.push({ ts: new Date(), type, ...data });
 
   const must = <T>(value: T | undefined, what: string): T => {
     if (!value) throw new Error(`${what} not found`);
     return value;
   };
   const ACTIVE_MATCH = ["proposed", "accepted", "meetup_set"];
+  // Same as postgres: keys whose value is undefined are ignored, not written.
+  const defined = <T extends object>(patch: T): Partial<T> =>
+    Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) as Partial<T>;
 
   return {
     async getUser(userId) {
@@ -32,12 +38,20 @@ export function createMemoryDb(): Db {
       return [...users.values()].find((u) => u.phone === phone) ?? null;
     },
     async createUser({ phone, spaceId }) {
+      const existing = [...users.values()].find((u) => u.phone === phone);
+      if (existing) {
+        // Same as postgres (upsert on phone): a second create for the same number returns that user.
+        const updated = { ...existing, spaceId };
+        users.set(existing.id, updated);
+        return updated;
+      }
       const user: User = { id: id(), phone, spaceId, firstName: null, optedOut: false, state: { kind: "onboarding" }, createdAt: new Date() };
       users.set(user.id, user);
+      record("user_created", { userId: user.id, payload: {} });
       return user;
     },
     async updateUser(userId, patch) {
-      const user = { ...must(users.get(userId), "user"), ...patch };
+      const user = { ...must(users.get(userId), "user"), ...defined(patch) };
       users.set(userId, user);
       return user;
     },
@@ -52,6 +66,7 @@ export function createMemoryDb(): Db {
       messages.push({ userId, direction: "out", text, platformMessageId: null, createdAt: new Date() });
     },
     async recentMessages(userId, limit) {
+      if (limit <= 0) return [];
       return messages.filter((m) => m.userId === userId).slice(-limit);
     },
 
@@ -74,8 +89,16 @@ export function createMemoryDb(): Db {
       return listings.get(listingId) ?? null;
     },
     async updateListing(listingId, patch) {
-      const listing = { ...must(listings.get(listingId), "listing"), ...patch };
+      const before = must(listings.get(listingId), "listing");
+      const listing = { ...before, ...defined(patch) };
       listings.set(listingId, listing);
+      if (before.status === "draft" && listing.status === "active") {
+        record("listing_activated", {
+          userId: listing.sellerId,
+          listingId,
+          payload: { priceCents: listing.priceCents, category: listing.category },
+        });
+      }
       return listing;
     },
     async listingsBySeller(sellerId, statuses) {
@@ -93,6 +116,7 @@ export function createMemoryDb(): Db {
         createdAt: new Date(),
       };
       wants.set(want.id, want);
+      record("want_created", { userId: buyerId, payload: { maxPriceCents } });
       return want;
     },
     async getWant(wantId) {
@@ -131,8 +155,18 @@ export function createMemoryDb(): Db {
       return matches.get(matchId) ?? null;
     },
     async updateMatch(matchId, patch) {
-      const match = { ...must(matches.get(matchId), "match"), ...patch };
+      const before = must(matches.get(matchId), "match");
+      const match = { ...before, ...defined(patch) };
       matches.set(matchId, match);
+      if (before.status === "proposed" && match.status === "accepted") {
+        record("match_accepted", { userId: match.buyerId, listingId: match.listingId, payload: { matchId } });
+      } else if (before.status !== "completed" && match.status === "completed") {
+        record("sale_completed", {
+          userId: match.buyerId,
+          listingId: match.listingId,
+          payload: { matchId, sellerId: match.sellerId },
+        });
+      }
       return match;
     },
     async activeMatchesForUser(userId) {
@@ -148,7 +182,7 @@ export function createMemoryDb(): Db {
     },
 
     async logEvent(type, data) {
-      events.push({ ts: new Date(), type, listingId: data?.listingId });
+      record(type, { userId: data?.userId, listingId: data?.listingId, payload: data?.payload });
     },
     async getStats(): Promise<Stats> {
       const all = [...listings.values()].filter((l) => l.status !== "draft");
@@ -176,6 +210,42 @@ export function createMemoryDb(): Db {
         listingsPerHour: [],
         updatedAt: new Date().toISOString(),
       };
+    },
+
+    // Memory mode matches by keyword in src/matching instead of by vector.
+    async setListingEmbedding() {},
+    async setWantEmbedding() {},
+    async searchListingsByVector() {
+      return [];
+    },
+    async openWantsByVector() {
+      return [];
+    },
+    async countEventsSince(type, { userId, since, listingId }) {
+      return events.filter(
+        (e) => e.type === type && e.userId === userId && e.ts >= since && (listingId === undefined || e.listingId === listingId),
+      ).length;
+    },
+
+    async activeListings(limit) {
+      return [...listings.values()]
+        .filter((l) => l.status === "active")
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+        .slice(0, Math.max(0, limit));
+    },
+    // Memory never stores embeddings, so there is never anything to backfill.
+    async activeListingsMissingEmbedding() {
+      return [];
+    },
+    async openWantsMissingEmbedding() {
+      return [];
+    },
+    async soldPricesForCategory(category, limit) {
+      return [...listings.values()]
+        .filter((l) => l.status === "sold" && l.category.toLowerCase() === category.toLowerCase())
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+        .slice(0, Math.max(0, limit))
+        .map((l) => l.priceCents);
     },
 
     async reset() {

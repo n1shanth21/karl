@@ -1,7 +1,7 @@
 -- Karl schema v1. Owner: Himagna (data branch). Mirrors src/types.ts.
 -- Run against Tiger Data. Money = integer cents. Times = timestamptz.
 
-CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;
 CREATE EXTENSION IF NOT EXISTS timescaledb; -- usually preinstalled on Tiger Data
 
 CREATE TABLE IF NOT EXISTS users (

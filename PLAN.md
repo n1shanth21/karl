@@ -38,7 +38,7 @@ Detailed tasks live in each person's `team/<name>.md`. This file is the shared s
 5. Apply any **Requests** from `team/*.md` to shared files on the `agent` branch.
 
 ## Demo script (2 minutes, two phones + dashboard on the projector)
-1. **Hook (15 s):** "Students already buy and sell in a hundred GroupMe chats. Karl is one number that remembers what you want."
+1. **Hook (15 s):** "Students already buy and sell in a dozen GroupMe chats. Karl is one number that remembers what you want."
 2. **Want (15 s):** Judge's phone texts "need a desk lamp under $20." Karl: "nothing yet, i'll text you."
 3. **Sell (25 s):** Teammate texts a photo of a lamp on the table → "desk lamp, good condition, $15. post it?" → ❤️.
 4. **Proactive match (15 s):** The judge's phone buzzes: "someone just listed a desk lamp, $15. want it?"
@@ -49,11 +49,12 @@ Detailed tasks live in each person's `team/<name>.md`. This file is the shared s
 
 ## Risks and fallbacks
 - **Promo/line problems:** escalate to leila@photon.codes or the Photon Discord within 15 min; keep building in terminal mode.
-- **Unregistered phones can't text in:** Aarush's `/signup` page adds them via the Photon Dashboard API; pre-add judges' numbers.
+- **Unregistered phones can't text in (CONFIRMED):** Aarush's `/signup` adds them via the Spectrum API (see access-test result below); pre-add judges' numbers.
 - **Duplicate replies:** two processes on one Photon project. After deploy, only Railway runs on Aarush's project.
 - **Gemini/DB outage at demo time:** backup video + seeded data; `DB_MODE=memory` as last resort.
 - **Behind schedule at 11:30 PM:** cut meetup polls → text; cut want expiry; never cut the relay or proactive match (they're the pitch).
 
 ## Phase 0 access-test result
-- Registered phone → line: `____`
-- Unregistered phone → line: `____`
+- Registered phone → line: ✅ works (Oct 10, 6:03 PM; real Gemini set_name + search + want saved)
+- Unregistered phone → line: ❌ **blocked by Photon before it reaches Karl** (Photon auto-replies "This number didn't recognize yours… add your number under Project → Users"). Nothing arrives in our server.
+- **Decision:** the sign-up page (Aarush, B3) is REQUIRED. `POST https://spectrum.photon.codes/projects/{projectId}/users/` with Basic auth (projectId:projectSecret), body `{"type":"shared","phoneNumber":"+1…","firstName":"…"}`. The response's `assignedPhoneNumber` is the number THAT user must text, so show it on the confirmation screen; don't assume it's the same line for everyone. Pro cap: 100 users. Pre-register judges' numbers before demo time.

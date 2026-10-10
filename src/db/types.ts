@@ -8,6 +8,7 @@ import type {
   ListingDraft,
   ListingStatus,
   Match,
+  SearchResult,
   Stats,
   StoredMessage,
   User,
@@ -67,6 +68,32 @@ export interface Db {
   // analytics (events table = Tiger hypertable in postgres mode)
   logEvent(type: string, data?: { userId?: string; listingId?: string; payload?: Record<string, unknown> }): Promise<void>;
   getStats(): Promise<Stats>;
+
+  // embeddings + vector search (Phase D2). Postgres uses pgvector; memory keeps the keyword path in
+  // src/matching, so the memory versions just store nothing and find nothing.
+  setListingEmbedding(listingId: string, embedding: number[]): Promise<void>;
+  setWantEmbedding(wantId: string, embedding: number[]): Promise<void>;
+  /** Active listings closest in meaning, best first. score = cosine similarity, 0..1. */
+  searchListingsByVector(
+    embedding: number[],
+    opts: { maxPriceCents?: number | null; excludeSellerId?: string; minScore: number; limit: number },
+  ): Promise<SearchResult[]>;
+  /** Open, unexpired wants this listing satisfies (price within max, not the seller's own), best first. */
+  openWantsByVector(
+    embedding: number[],
+    opts: { priceCents: number; excludeBuyerId: string; minScore: number },
+  ): Promise<{ want: Want; score: number }[]>;
+  /** How many events of this type a user has had since a time (daily ping cap). listingId narrows it to one listing. */
+  countEventsSince(type: string, opts: { userId: string; since: Date; listingId?: string }): Promise<number>;
+
+  // robustness + price hints (Phase DX)
+  /** Active listings, newest first (keyword search fallback when Gemini is down). */
+  activeListings(limit: number): Promise<Listing[]>;
+  /** Active listings / open wants that still have no embedding (Gemini failed when they were created). */
+  activeListingsMissingEmbedding(): Promise<Listing[]>;
+  openWantsMissingEmbedding(): Promise<Want[]>;
+  /** Prices (cents) of sold listings whose category matches (case-insensitive), newest first. */
+  soldPricesForCategory(category: string, limit: number): Promise<number[]>;
 
   /** Test/demo helper: wipe everything. */
   reset(): Promise<void>;

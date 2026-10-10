@@ -8,7 +8,7 @@ export type ConversationState =
   | { kind: "onboarding" } // asked for first name, waiting
   | { kind: "idle" }
   | { kind: "drafting_listing"; listingId: string } // draft exists, waiting for confirm/edits
-  | { kind: "choosing_result"; listingIds: string[] } // showed search results, waiting for a pick
+  | { kind: "choosing_result"; listingIds: string[] } // showed search results OR a proactive offer, waiting for a pick
   | { kind: "in_handoff" }; // at least one active match (relay may apply)
 
 export type User = {
@@ -115,3 +115,6 @@ export type Stats = {
   listingsPerHour: { hour: string; count: number }[]; // from Tiger continuous aggregate
   updatedAt: string; // ISO
 };
+
+export type ActivityStep = { key: string; label: string; status: "pending" | "active" | "done" | "failed"; at: string | null };
+export type ActivityRun = { id: string; kind: "sell" | "buy"; firstName: string; itemTitle: string | null; startedAt: string; steps: ActivityStep[] };

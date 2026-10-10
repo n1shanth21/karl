@@ -1,21 +1,37 @@
-// Tiger Data (Postgres + pgvector) implementation of Db. Owner: Himagna (data branch).
-// TODO(Himagna, Phase D1): implement every method with the `postgres` client, matching memory.ts behavior.
-// Until then, any call throws a clear error so nobody mistakes the stub for working code.
+// Tiger Data (Postgres + pgvector + Timescale) implementation of Db. Owner: Himagna (data branch).
+// Each table's queries live in src/db/pg/<table>.ts; this file just puts them together.
 
-import postgres from "postgres";
 import { config } from "../config";
+import { makeSql } from "./pg/client";
+import { extrasQueries } from "./pg/extras";
+import { listingsQueries } from "./pg/listings";
+import { matchesQueries } from "./pg/matches";
+import { messagesQueries } from "./pg/messages";
+import { photosQueries } from "./pg/photos";
+import { statsQueries } from "./pg/stats";
+import { usersQueries } from "./pg/users";
+import { vectorsQueries } from "./pg/vectors";
+import { wantsQueries } from "./pg/wants";
 import type { Db } from "./types";
 
-export function createPostgresDb(): Db {
-  if (!config.databaseUrl) throw new Error("DB_MODE=postgres needs DATABASE_URL in .env");
-  const sql = postgres(config.databaseUrl, { max: 5 });
-  void sql; // used once methods are implemented
+export type PostgresDb = Db & { end(): Promise<void> };
 
-  return new Proxy({} as Db, {
-    get(_target, method) {
-      return async () => {
-        throw new Error(`db.${String(method)} is not implemented for postgres yet (Himagna, Phase D1). Use DB_MODE=memory.`);
-      };
-    },
-  });
+/** `schema` and `url` are for tests (a throwaway test_ schema). The app calls this with no arguments. */
+export function createPostgresDb(opts: { url?: string; schema?: string } = {}): PostgresDb {
+  const url = opts.url ?? config.databaseUrl;
+  if (!url) throw new Error("DB_MODE=postgres needs DATABASE_URL in .env");
+  const sql = makeSql({ url, schema: opts.schema });
+
+  return {
+    ...usersQueries(sql),
+    ...messagesQueries(sql),
+    ...photosQueries(sql),
+    ...listingsQueries(sql),
+    ...wantsQueries(sql),
+    ...matchesQueries(sql),
+    ...statsQueries(sql),
+    ...vectorsQueries(sql),
+    ...extrasQueries(sql),
+    end: () => sql.end({ timeout: 1 }),
+  };
 }
