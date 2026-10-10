@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Karl avatar: Carolina blue field, white chat bubble with a blue "k". Key art sits inside the central circle for iMessage circular crop. -->
+  <rect x="0" y="0" width="1024" height="1024" fill="#4B9CD3"/>
+  <g transform="translate(0 -28)">
+    <!-- chat bubble with tail at bottom-left -->
+    <path fill="#FFFFFF" d="M382 292 H642 A120 120 0 0 1 762 412 V552 A120 120 0 0 1 642 672 H430 L316 790 L330 672 H382 A120 120 0 0 1 262 552 V412 A120 120 0 0 1 382 292 Z"/>
+    <!-- lowercase k drawn as strokes -->
+    <g fill="none" stroke="#4B9CD3" stroke-width="60" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M462 382 V582"/>
+      <path d="M540 382 L470 484"/>
+      <path d="M486 480 L560 582"/>
+    </g>
+  </g>
+</svg>
