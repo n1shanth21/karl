@@ -6,12 +6,28 @@ You keep Karl safe and running: the scam and prohibited-item checks, the every-m
 **Contract you implement:** `src/safety/index.ts` (`checkProhibited`, `scanRelayMessage`, `allowMessage`), `src/jobs/index.ts` (`tick`, `startJobs`), `src/http/index.ts` (`startHttp`). Keep the signatures.
 **Rule:** jobs never send texts. They update the DB and `bus.emit(...)`; the agent sends the messages.
 
+## Milestones (check off as you go; each one ends with `bun run check && bun test` passing, a commit, and a push)
+
+| # | Done by | Milestone | Proof it's done |
+|---|---|---|---|
+| M0 | 5:30 PM | Laptop ready: repo cloned, `bun run setup`, `.env` filled, on `backend` branch | `bun tools/guard.ts whoami` says BACKEND; `bun run dev` → type "hi" → Karl replies |
+| M1 | 6:30 PM | `scanRelayMessage` catches blocks (numbers, emails, handles, links, gift cards, wire/crypto) and warns (pay first, deposit, pressure) | `tests/backend/safety.test.ts` has 15+ scam and 15+ normal messages, all pass |
+| M2 | 7:15 PM | `checkProhibited` (incl. tickets) + `allowMessage` rate limit | tests for each pass |
+| M3 | 7:55 PM | **Safety done → ready for Merge #1** | pushed to `origin/backend`; told Nishanth in chat |
+| M4 | 9:30 PM | `tick`: expired holds → match `expired`, listing `active`, `hold_expired` emitted | `tests/backend/jobs.test.ts` with a fake `now` |
+| M5 | 11:00 PM | `tick`: meetup check-ins fire **exactly once** per match + want expiry → `want_expired` | test runs `tick` twice and sees one event |
+| M6 | 11:25 PM | **Timers done → ready for Merge #2** | pushed; told Nishanth |
+| M7 | 12:30 AM | **Karl live on Railway** (B3) with my Photon project | `/health` OK on the Railway URL; a real text gets a reply that shows in Railway logs |
+| M8 | 1:00 AM | Testers' and judges' phones added under Photon → Users; Aayush has the Railway URL | Aayush's dashboard shows real numbers |
+| M9 | 3:00 AM | `/api/stats` cached 3 s; a test proves no phone number or last name appears in any response | test passes; pushed for Merge #3 |
+| M10 | 6:00 AM | Railway logs clean for the demo path; pushed for the final merge | no errors in the last hour of logs |
+
 ## Setup (once)
 - app.photon.codes → Pro with promo **HACKWITHPHOTON** → add an iMessage line → add the team's phones under **Users** → Project ID + Secret into `.env`
 - railway.app account, connected to the GitHub repo
 
 ## Phase B1: safety · 5:30–8:00 PM
-- [ ] `scanRelayMessage(text)`: fast regex rules first. **block**: phone numbers, emails, social handles (@…, "my insta"), URLs, gift cards, wire/crypto. **warn**: pay first, deposit, "venmo me now", "send half upfront", pressure ("only today", "text me on whatsapp"). The reason is in Karl's voice and shown to the user. Gemini only for borderline cases (optional).
+- [x] `scanRelayMessage(text)`: fast regex rules first. **block**: phone numbers, emails, social handles (@…, "my insta"), URLs, gift cards, wire/crypto. **warn**: pay first, deposit, "venmo me now", "send half upfront", pressure ("only today", "text me on whatsapp"). The reason is in Karl's voice and shown to the user. Gemini only for borderline cases (optional).
 - [ ] `checkProhibited(draft)`: alcohol, drugs, vapes, meds, weapons, tickets (UNC bans student-ticket resale), digital accounts/licenses, counterfeit → block with a friendly reason
 - [ ] `allowMessage(userId)`: max `LIMITS.rateLimitMessagesPer10Min` per user (in-memory sliding window)
 - [ ] `tests/backend/safety.test.ts`: ≥15 scam messages + ≥15 normal ones ("omw", "running 5 late", "can we do the Pit instead", "is it still available", "$40 ok?"). **Normal messages must never be blocked.**
@@ -40,4 +56,5 @@ Read src/safety/index.ts and src/types.ts first. Show me a numbered plan and wai
 ```
 
 ## Requests (things I need from others)
--
+- **Nishanth (PLAN.md):** access-test result is already known from my Photon project (tested 2026-10-10). Registered phone → reply works. Unregistered phone → Photon auto-replies "didn't recognize your number"; nothing reaches our code. Also, each user is assigned **their own** line ("Texts on" in Photon → Users), so there's no single Karl number for the dashboard QR or a Discord post. Please record this and decide: add people by hand (max 100 users), or I build `POST /signup` in B3.
+- **Himagna:** I already have a Tiger Data service (pgvector 0.8.7 verified). I'll DM you the `DATABASE_URL` so we use one database instead of two.

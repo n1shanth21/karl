@@ -3,6 +3,7 @@
 // Phase 0 stubs allow everything. TODO(Aarush, Phase B1): real rules + tests.
 
 import type { ListingDraft, SafetyVerdict } from "../types";
+import { scanText } from "./scan";
 
 /** Block prohibited items (alcohol, drugs, meds, weapons, vapes, tickets, stolen-looking, digital accounts). */
 export function checkProhibited(_draft: ListingDraft): SafetyVerdict {
@@ -16,8 +17,8 @@ export function checkProhibited(_draft: ListingDraft): SafetyVerdict {
  * allow: everything normal ("omw", "running 5 late", "can we do the Pit instead").
  * The reason is shown to the user, so write it in Karl's voice.
  */
-export async function scanRelayMessage(_text: string): Promise<SafetyVerdict> {
-  return { action: "allow" };
+export async function scanRelayMessage(text: string): Promise<SafetyVerdict> {
+  return scanText(text);
 }
 
 /** Per-user rate limit. Returns false if this user should be throttled right now. */
