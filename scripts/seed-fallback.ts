@@ -11,7 +11,7 @@ export type SeedListing = {
   condition: Condition;
   priceCents: number;
   sellerFirstName: string;
-  photo: string | null; // file name inside seed/photos/, or null for no photo
+  photo: string | null; // "photos/x.jpg" (relative to seed/), or null for no photo
 };
 
 const SELLERS = ["Maya", "Jordan", "Ethan", "Priya", "Marcus", "Sofia"];
