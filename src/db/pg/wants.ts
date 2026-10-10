@@ -3,7 +3,7 @@
 
 import type { Want } from "../../types";
 import type { Db } from "../types";
-import { isUuid, type Sql } from "./client";
+import { insertEvent, isUuid, type Sql } from "./client";
 
 type WantQueries = Pick<Db, "createWant" | "getWant" | "updateWantStatus" | "openWantsByBuyer" | "openWantsExpiredBefore">;
 
@@ -18,6 +18,7 @@ export function wantsQueries(sql: Sql): WantQueries {
         values (${buyerId}, ${queryText}, ${maxPriceCents})
         returning ${cols}
       `;
+      await insertEvent(sql, "want_created", { userId: buyerId, payload: { maxPriceCents } });
       return row!;
     },
 

@@ -4,7 +4,7 @@
 import type postgres from "postgres";
 import type { Listing } from "../../types";
 import type { Db, ListingPatch } from "../types";
-import { defined, isUuid, type Sql } from "./client";
+import { defined, insertEvent, isUuid, type Sql } from "./client";
 
 type ListingQueries = Pick<Db, "createListing" | "getListing" | "updateListing" | "listingsBySeller">;
 
@@ -34,11 +34,24 @@ export function listingsQueries(sql: Sql): ListingQueries {
       const keys = Object.keys(changes);
 
       if (!isUuid(id)) throw new Error("listing not found");
+      // One statement: lock the row, read its old status, update it, and hand the old status back,
+      // so "draft -> active" is detected without a race.
       const [row] = keys.length
-        ? await sql<Listing[]>`update listings set ${sql(changes, keys)} where id = ${id} returning ${cols}`
-        : await sql<Listing[]>`select ${cols} from listings where id = ${id}`;
+        ? await sql<(Listing & { oldStatus: string })[]>`
+            with old as (select status as old_status from listings where id = ${id} for update)
+            update listings set ${sql(changes, keys)} from old where id = ${id}
+            returning ${cols}, old_status`
+        : await sql<(Listing & { oldStatus: string })[]>`select ${cols}, status as old_status from listings where id = ${id}`;
       if (!row) throw new Error("listing not found");
-      return row;
+      const { oldStatus, ...listing } = row;
+      if (oldStatus === "draft" && listing.status === "active") {
+        await insertEvent(sql, "listing_activated", {
+          userId: listing.sellerId,
+          listingId: listing.id,
+          payload: { priceCents: listing.priceCents, category: listing.category },
+        });
+      }
+      return listing;
     },
 
     async listingsBySeller(sellerId, statuses) {

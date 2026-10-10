@@ -16,7 +16,10 @@ export function createMemoryDb(): Db {
   let photos = new Map<string, { bytes: Uint8Array; mimeType: string }>();
   let messages: StoredMessage[] = [];
   let seenMessageIds = new Set<string>();
-  let events: { ts: Date; type: string; userId?: string; listingId?: string }[] = [];
+  let events: { ts: Date; type: string; userId?: string; listingId?: string; payload?: Record<string, unknown> }[] = [];
+  // The db layer logs its own analytics events (same five as postgres); flows never call logEvent for these.
+  const record = (type: string, data: { userId?: string; listingId?: string; payload?: Record<string, unknown> }) =>
+    events.push({ ts: new Date(), type, ...data });
 
   const must = <T>(value: T | undefined, what: string): T => {
     if (!value) throw new Error(`${what} not found`);
@@ -44,6 +47,7 @@ export function createMemoryDb(): Db {
       }
       const user: User = { id: id(), phone, spaceId, firstName: null, optedOut: false, state: { kind: "onboarding" }, createdAt: new Date() };
       users.set(user.id, user);
+      record("user_created", { userId: user.id, payload: {} });
       return user;
     },
     async updateUser(userId, patch) {
@@ -85,8 +89,16 @@ export function createMemoryDb(): Db {
       return listings.get(listingId) ?? null;
     },
     async updateListing(listingId, patch) {
-      const listing = { ...must(listings.get(listingId), "listing"), ...defined(patch) };
+      const before = must(listings.get(listingId), "listing");
+      const listing = { ...before, ...defined(patch) };
       listings.set(listingId, listing);
+      if (before.status === "draft" && listing.status === "active") {
+        record("listing_activated", {
+          userId: listing.sellerId,
+          listingId,
+          payload: { priceCents: listing.priceCents, category: listing.category },
+        });
+      }
       return listing;
     },
     async listingsBySeller(sellerId, statuses) {
@@ -104,6 +116,7 @@ export function createMemoryDb(): Db {
         createdAt: new Date(),
       };
       wants.set(want.id, want);
+      record("want_created", { userId: buyerId, payload: { maxPriceCents } });
       return want;
     },
     async getWant(wantId) {
@@ -142,8 +155,18 @@ export function createMemoryDb(): Db {
       return matches.get(matchId) ?? null;
     },
     async updateMatch(matchId, patch) {
-      const match = { ...must(matches.get(matchId), "match"), ...defined(patch) };
+      const before = must(matches.get(matchId), "match");
+      const match = { ...before, ...defined(patch) };
       matches.set(matchId, match);
+      if (before.status === "proposed" && match.status === "accepted") {
+        record("match_accepted", { userId: match.buyerId, listingId: match.listingId, payload: { matchId } });
+      } else if (before.status !== "completed" && match.status === "completed") {
+        record("sale_completed", {
+          userId: match.buyerId,
+          listingId: match.listingId,
+          payload: { matchId, sellerId: match.sellerId },
+        });
+      }
       return match;
     },
     async activeMatchesForUser(userId) {
@@ -159,7 +182,7 @@ export function createMemoryDb(): Db {
     },
 
     async logEvent(type, data) {
-      events.push({ ts: new Date(), type, userId: data?.userId, listingId: data?.listingId });
+      record(type, { userId: data?.userId, listingId: data?.listingId, payload: data?.payload });
     },
     async getStats(): Promise<Stats> {
       const all = [...listings.values()].filter((l) => l.status !== "draft");
@@ -198,8 +221,10 @@ export function createMemoryDb(): Db {
     async openWantsByVector() {
       return [];
     },
-    async countEventsSince(type, { userId, since }) {
-      return events.filter((e) => e.type === type && e.userId === userId && e.ts >= since).length;
+    async countEventsSince(type, { userId, since, listingId }) {
+      return events.filter(
+        (e) => e.type === type && e.userId === userId && e.ts >= since && (listingId === undefined || e.listingId === listingId),
+      ).length;
     },
 
     async reset() {

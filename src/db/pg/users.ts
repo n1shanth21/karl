@@ -7,7 +7,7 @@
 import type postgres from "postgres";
 import type { User } from "../../types";
 import type { Db, UserPatch } from "../types";
-import { defined, isUuid, type Sql } from "./client";
+import { defined, insertEvent, isUuid, type Sql } from "./client";
 
 type UserQueries = Pick<Db, "getUser" | "getUserByPhone" | "createUser" | "updateUser">;
 
@@ -27,13 +27,17 @@ export function usersQueries(sql: Sql): UserQueries {
     },
 
     // Two messages from a brand-new number can arrive at once; the second just gets the same user back.
+    // `xmax = 0` is true only for a freshly inserted row (an upsert that updated has a nonzero xmax),
+    // so user_created is logged once per real new user.
     async createUser({ phone, spaceId }) {
-      const [row] = await sql<User[]>`
+      const [row] = await sql<(User & { inserted: boolean })[]>`
         insert into users (phone, space_id) values (${phone}, ${spaceId})
         on conflict (phone) do update set space_id = excluded.space_id
-        returning ${cols}
+        returning ${cols}, (xmax = 0) as inserted
       `;
-      return row!;
+      const { inserted, ...user } = row!;
+      if (inserted) await insertEvent(sql, "user_created", { userId: user.id });
+      return user;
     },
 
     async updateUser(id, patch: UserPatch) {

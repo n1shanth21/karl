@@ -83,8 +83,8 @@ export interface Db {
     embedding: number[],
     opts: { priceCents: number; excludeBuyerId: string; minScore: number },
   ): Promise<{ want: Want; score: number }[]>;
-  /** How many events of this type a user has had since a time (used for the daily ping cap). */
-  countEventsSince(type: string, opts: { userId: string; since: Date }): Promise<number>;
+  /** How many events of this type a user has had since a time (daily ping cap). listingId narrows it to one listing. */
+  countEventsSince(type: string, opts: { userId: string; since: Date; listingId?: string }): Promise<number>;
 
   /** Test/demo helper: wipe everything. */
   reset(): Promise<void>;

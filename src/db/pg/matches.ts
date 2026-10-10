@@ -3,7 +3,7 @@
 import type postgres from "postgres";
 import type { Match } from "../../types";
 import type { Db, MatchPatch } from "../types";
-import { defined, isUuid, type Sql } from "./client";
+import { defined, insertEvent, isUuid, type Sql } from "./client";
 
 type MatchQueries = Pick<
   Db,
@@ -35,11 +35,25 @@ export function matchesQueries(sql: Sql): MatchQueries {
       const keys = Object.keys(changes);
 
       if (!isUuid(id)) throw new Error("match not found");
+      // One statement: lock the row, read its old status, update, return the old status (see listings.ts).
       const [row] = keys.length
-        ? await sql<Match[]>`update matches set ${sql(changes, keys)} where id = ${id} returning ${cols}`
-        : await sql<Match[]>`select ${cols} from matches where id = ${id}`;
+        ? await sql<(Match & { oldStatus: string })[]>`
+            with old as (select status as old_status from matches where id = ${id} for update)
+            update matches set ${sql(changes, keys)} from old where id = ${id}
+            returning ${cols}, old_status`
+        : await sql<(Match & { oldStatus: string })[]>`select ${cols}, status as old_status from matches where id = ${id}`;
       if (!row) throw new Error("match not found");
-      return row;
+      const { oldStatus, ...match } = row;
+      if (oldStatus === "proposed" && match.status === "accepted") {
+        await insertEvent(sql, "match_accepted", { userId: match.buyerId, listingId: match.listingId, payload: { matchId: match.id } });
+      } else if (oldStatus !== "completed" && match.status === "completed") {
+        await insertEvent(sql, "sale_completed", {
+          userId: match.buyerId,
+          listingId: match.listingId,
+          payload: { matchId: match.id, sellerId: match.sellerId },
+        });
+      }
+      return match;
     },
 
     async activeMatchesForUser(userId) {

@@ -18,7 +18,49 @@ type RecentRow = {
   createdAt: Date;
 };
 
+const HOURS = 12;
+
 export function statsQueries(sql: Sql): StatsQueries {
+  // Detected once per connection pool: does this schema have the events_hourly continuous aggregate?
+  // (A schema migrated without 003_tiger.sql does not, and falls back to counting raw events.)
+  // Qualified with current_schema() on purpose: an unqualified name would also find public.events_hourly
+  // through the search_path and read the real database's counts from a test schema.
+  let hasAggregate: Promise<boolean> | null = null;
+  const aggregateExists = () =>
+    (hasAggregate ??= sql<{ found: boolean }[]>`select to_regclass(current_schema() || '.events_hourly') is not null as found`.then(
+      (r) => r[0]!.found,
+      (err) => {
+        hasAggregate = null; // don't cache a failed check
+        throw err;
+      },
+    ));
+
+  // Last 12 hours of listing_activated counts, oldest first, empty hours = 0.
+  // time_bucket('1 hour', now()) lines the series up with the aggregate's own UTC hour buckets.
+  async function listingsPerHour(): Promise<Stats["listingsPerHour"]> {
+    const rows = (await aggregateExists())
+      ? await sql<{ hour: Date; count: number }[]>`
+          select g.hour, coalesce(h.n, 0)::int as count
+          from generate_series(time_bucket('1 hour', now()) - interval '11 hours', time_bucket('1 hour', now()), interval '1 hour') as g(hour)
+          left join (
+            select bucket, sum(n) as n from events_hourly where type = 'listing_activated' group by bucket
+          ) h on h.bucket = g.hour
+          order by g.hour
+        `
+      : await sql<{ hour: Date; count: number }[]>`
+          select g.hour, coalesce(h.n, 0)::int as count
+          from generate_series(time_bucket('1 hour', now()) - interval '11 hours', time_bucket('1 hour', now()), interval '1 hour') as g(hour)
+          left join (
+            select time_bucket('1 hour', ts) as bucket, count(*) as n
+            from events
+            where type = 'listing_activated' and ts >= time_bucket('1 hour', now()) - interval '11 hours'
+            group by 1
+          ) h on h.bucket = g.hour
+          order by g.hour
+        `;
+    return rows.map((r) => ({ hour: r.hour.toISOString(), count: r.count }));
+  }
+
   return {
     async logEvent(type, data) {
       await insertEvent(sql, type, data); // never throws
@@ -65,7 +107,7 @@ export function statsQueries(sql: Sql): StatsQueries {
           status: r.status,
           createdAt: r.createdAt.toISOString(),
         })),
-        listingsPerHour: [], // TODO(Phase D3): read from the Timescale continuous aggregate
+        listingsPerHour: await listingsPerHour(),
         updatedAt: new Date().toISOString(),
       };
     },
