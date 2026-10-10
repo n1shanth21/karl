@@ -71,9 +71,15 @@ export function statsQueries(sql: Sql): StatsQueries {
     },
 
     async reset() {
-      // Unqualified names resolve via the connection's search_path (so test schemas are safe).
-      // schema_migrations is intentionally NOT truncated.
-      await sql`truncate users, photos, listings, wants, matches, conversation_messages, events restart identity cascade`;
+      // Every table is qualified with the connection's own schema, so a table missing from a test
+      // schema can never fall through to the real (public) tables. Wiping public needs an explicit
+      // opt-in that only scripts/reset.ts sets. schema_migrations is intentionally NOT truncated.
+      const [{ schema }] = await sql<{ schema: string }[]>`select current_schema() as schema`;
+      if (!schema.startsWith("test_") && process.env.KARL_ALLOW_PUBLIC_RESET !== "1") {
+        throw new Error(`refusing to reset schema "${schema}" (run scripts/reset.ts to wipe the real database)`);
+      }
+      const tables = ["users", "photos", "listings", "wants", "matches", "conversation_messages", "events"];
+      await sql`truncate ${sql(tables.map((t) => `${schema}.${t}`))} restart identity cascade`;
     },
   };
 }

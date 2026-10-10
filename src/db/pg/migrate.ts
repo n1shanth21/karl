@@ -1,6 +1,8 @@
 // Runs db/migrations/*.sql in filename order, each file at most once. Owner: Himagna (data branch).
 // Applied files are recorded in a schema_migrations table, so running this again is safe.
-// Files are NOT wrapped in an explicit transaction: some Timescale statements refuse to run inside one.
+// Each file runs as ONE implicit transaction (all-or-nothing), so a half-applied file can't happen.
+// That also means a file must not contain statements that refuse transactions (CREATE INDEX CONCURRENTLY,
+// a continuous aggregate WITH DATA, CALL refresh_continuous_aggregate). Use WITH NO DATA + a policy instead.
 
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";

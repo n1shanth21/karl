@@ -26,9 +26,11 @@ export function usersQueries(sql: Sql): UserQueries {
       return row ?? null;
     },
 
+    // Two messages from a brand-new number can arrive at once; the second just gets the same user back.
     async createUser({ phone, spaceId }) {
       const [row] = await sql<User[]>`
         insert into users (phone, space_id) values (${phone}, ${spaceId})
+        on conflict (phone) do update set space_id = excluded.space_id
         returning ${cols}
       `;
       return row!;

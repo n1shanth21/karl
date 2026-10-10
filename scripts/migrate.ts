@@ -11,6 +11,7 @@ if (!url) throw new Error("DATABASE_URL is missing. Put it in .env (see .env.exa
 
 const flag = process.argv.indexOf("--schema");
 const schema = flag > -1 ? process.argv[flag + 1] : undefined;
+if (flag > -1 && !schema) throw new Error("--schema needs a name, e.g. --schema test_smoke");
 if (schema && !/^test_[a-z0-9_]+$/.test(schema)) throw new Error("--schema must look like test_something");
 
 const sql = makeSql({ url, schema, max: 1 });

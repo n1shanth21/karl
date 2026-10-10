@@ -35,6 +35,13 @@ export function createMemoryDb(): Db {
       return [...users.values()].find((u) => u.phone === phone) ?? null;
     },
     async createUser({ phone, spaceId }) {
+      const existing = [...users.values()].find((u) => u.phone === phone);
+      if (existing) {
+        // Same as postgres (upsert on phone): a second create for the same number returns that user.
+        const updated = { ...existing, spaceId };
+        users.set(existing.id, updated);
+        return updated;
+      }
       const user: User = { id: id(), phone, spaceId, firstName: null, optedOut: false, state: { kind: "onboarding" }, createdAt: new Date() };
       users.set(user.id, user);
       return user;
@@ -55,6 +62,7 @@ export function createMemoryDb(): Db {
       messages.push({ userId, direction: "out", text, platformMessageId: null, createdAt: new Date() });
     },
     async recentMessages(userId, limit) {
+      if (limit <= 0) return [];
       return messages.filter((m) => m.userId === userId).slice(-limit);
     },
 
