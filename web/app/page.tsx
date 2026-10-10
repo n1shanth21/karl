@@ -1,14 +1,17 @@
 "use client";
 import { useEffect, useState } from "react";
+import ActivityPanel from "../components/ActivityPanel";
 import Counter from "../components/Counter";
 import Feed from "../components/Feed";
 import Sparkline from "../components/Sparkline";
 import TextKarl from "../components/TextKarl";
 import { dollars } from "../lib/format";
+import { useActivity } from "../lib/useActivity";
 import { useStats } from "../lib/useStats";
 
 export default function Home() {
   const { stats, live } = useStats();
+  const { run, simulated } = useActivity();
   // null on the server; set in the browser so "5m ago" never causes a hydration mismatch.
   const [now, setNow] = useState<number | null>(null);
 
@@ -36,6 +39,8 @@ export default function Home() {
         <Counter value={stats.tradedCents} format={dollars} label="traded" />
         <Counter value={stats.usersTotal} label="students" />
       </section>
+
+      <ActivityPanel run={run} simulated={simulated} />
 
       <section className="grid">
         <div className="card">

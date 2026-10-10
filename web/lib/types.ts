@@ -21,3 +21,21 @@ export type Stats = {
   listingsPerHour: { hour: string; count: number }[];
   updatedAt: string; // ISO
 };
+
+// Mirrors the proposed ActivityStep / ActivityRun addition to src/types.ts.
+// GET /api/activity returns a bare ActivityRun[], newest first, up to 5.
+export type ActivityStep = {
+  key: string;
+  label: string;
+  status: "pending" | "active" | "done" | "failed";
+  at: string | null; // ISO time the step finished (or started), null while pending
+};
+
+export type ActivityRun = {
+  id: string;
+  kind: "sell" | "buy";
+  firstName: string; // first name only
+  itemTitle: string | null;
+  startedAt: string; // ISO
+  steps: ActivityStep[];
+};
