@@ -2,8 +2,19 @@
 // and lets tests run without Tiger Data. Data is lost on restart. Owner: Himagna (data branch).
 // Keep it behaving the same as postgres.ts so tests mean something.
 
-import { config } from "../config";
 import type { Listing, Match, Stats, StoredMessage, User, Want } from "../types";
+import {
+  activeListings,
+  activeMatchesForUser,
+  computeStats,
+  defined,
+  matchesDueForCheckin,
+  matchesWithExpiredHold,
+  must,
+  newMatch,
+  newWant,
+  soldPricesForCategory,
+} from "./memory-helpers";
 import type { Db } from "./types";
 
 const id = () => crypto.randomUUID();
@@ -21,14 +32,6 @@ export function createMemoryDb(): Db {
   const record = (type: string, data: { userId?: string; listingId?: string; payload?: Record<string, unknown> }) =>
     events.push({ ts: new Date(), type, ...data });
 
-  const must = <T>(value: T | undefined, what: string): T => {
-    if (!value) throw new Error(`${what} not found`);
-    return value;
-  };
-  const ACTIVE_MATCH = ["proposed", "accepted", "meetup_set"];
-  // Same as postgres: keys whose value is undefined are ignored, not written.
-  const defined = <T extends object>(patch: T): Partial<T> =>
-    Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) as Partial<T>;
 
   return {
     async getUser(userId) {
@@ -106,15 +109,7 @@ export function createMemoryDb(): Db {
     },
 
     async createWant({ buyerId, queryText, maxPriceCents }) {
-      const want: Want = {
-        id: id(),
-        buyerId,
-        queryText,
-        maxPriceCents,
-        status: "open",
-        expiresAt: new Date(Date.now() + 7 * 24 * 3600_000),
-        createdAt: new Date(),
-      };
+      const want = newWant(id(), { buyerId, queryText, maxPriceCents });
       wants.set(want.id, want);
       record("want_created", { userId: buyerId, payload: { maxPriceCents } });
       return want;
@@ -135,19 +130,7 @@ export function createMemoryDb(): Db {
     },
 
     async createMatch({ listingId, buyerId, sellerId }) {
-      const match: Match = {
-        id: id(),
-        listingId,
-        buyerId,
-        sellerId,
-        status: "proposed",
-        holdExpiresAt: null,
-        meetupSpot: null,
-        meetupAt: null,
-        buyerConfirmed: false,
-        sellerConfirmed: false,
-        createdAt: new Date(),
-      };
+      const match = newMatch(id(), { listingId, buyerId, sellerId });
       matches.set(match.id, match);
       return match;
     },
@@ -170,46 +153,20 @@ export function createMemoryDb(): Db {
       return match;
     },
     async activeMatchesForUser(userId) {
-      return [...matches.values()].filter(
-        (m) => (m.buyerId === userId || m.sellerId === userId) && ACTIVE_MATCH.includes(m.status),
-      );
+      return activeMatchesForUser(matches, userId);
     },
     async matchesWithExpiredHold(date) {
-      return [...matches.values()].filter((m) => m.status === "accepted" && m.holdExpiresAt !== null && m.holdExpiresAt < date);
+      return matchesWithExpiredHold(matches, date);
     },
     async matchesDueForCheckin(date) {
-      return [...matches.values()].filter((m) => m.status === "meetup_set" && m.meetupAt !== null && m.meetupAt < date);
+      return matchesDueForCheckin(matches, date);
     },
 
     async logEvent(type, data) {
       record(type, { userId: data?.userId, listingId: data?.listingId, payload: data?.payload });
     },
     async getStats(): Promise<Stats> {
-      const all = [...listings.values()].filter((l) => l.status !== "draft");
-      const sold = all.filter((l) => l.status === "sold");
-      const recent = all
-        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-        .slice(0, 10)
-        .map((l) => ({
-          id: l.id,
-          title: l.title,
-          priceCents: l.priceCents,
-          sellerFirstName: users.get(l.sellerId)?.firstName ?? "someone",
-          photoUrl: l.photoId ? `${config.publicBaseUrl}/photos/${l.photoId}` : null,
-          status: l.status,
-          createdAt: l.createdAt.toISOString(),
-        }));
-      return {
-        listedTotal: all.length,
-        soldTotal: sold.length,
-        activeListings: all.filter((l) => l.status === "active").length,
-        openWants: [...wants.values()].filter((w) => w.status === "open").length,
-        usersTotal: users.size,
-        tradedCents: sold.reduce((sum, l) => sum + l.priceCents, 0),
-        recent,
-        listingsPerHour: [],
-        updatedAt: new Date().toISOString(),
-      };
+      return computeStats(users, listings, wants);
     },
 
     // Memory mode matches by keyword in src/matching instead of by vector.
@@ -228,10 +185,7 @@ export function createMemoryDb(): Db {
     },
 
     async activeListings(limit) {
-      return [...listings.values()]
-        .filter((l) => l.status === "active")
-        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-        .slice(0, Math.max(0, limit));
+      return activeListings(listings, limit);
     },
     // Memory never stores embeddings, so there is never anything to backfill.
     async activeListingsMissingEmbedding() {
@@ -241,11 +195,7 @@ export function createMemoryDb(): Db {
       return [];
     },
     async soldPricesForCategory(category, limit) {
-      return [...listings.values()]
-        .filter((l) => l.status === "sold" && l.category.toLowerCase() === category.toLowerCase())
-        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-        .slice(0, Math.max(0, limit))
-        .map((l) => l.priceCents);
+      return soldPricesForCategory(listings, category, limit);
     },
 
     async reset() {
