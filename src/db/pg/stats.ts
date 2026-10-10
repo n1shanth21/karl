@@ -4,7 +4,7 @@
 import { config } from "../../config";
 import type { ListingStatus, Stats } from "../../types";
 import { DB_OWNED_EVENTS, type Db } from "../types";
-import { insertEvent, type Sql } from "./client";
+import { insertEvent, photoUrl, type Sql } from "./client";
 
 type StatsQueries = Pick<Db, "logEvent" | "getStats" | "reset">;
 
@@ -104,7 +104,7 @@ export function statsQueries(sql: Sql): StatsQueries {
           title: r.title,
           priceCents: r.priceCents,
           sellerFirstName: r.sellerFirstName,
-          photoUrl: r.photoId ? `${config.publicBaseUrl}/photos/${r.photoId}` : null,
+          photoUrl: r.photoId ? photoUrl(config.publicBaseUrl, r.photoId) : null,
           status: r.status,
           createdAt: r.createdAt.toISOString(),
         })),
