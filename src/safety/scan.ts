@@ -55,6 +55,19 @@ const BLOCK_RULES: Rule[] = [
       /\bwire\s+(?:transfer|me|the money|it)\b|\bwestern union\b|\bmoneygram\b|\bbitcoin\b|\bbtc\b|\bcrypto\b|\bethereum\b|\busdt\b|\bdogecoin\b/i,
     reason: "i blocked that one. wire transfers and crypto are a classic scam move. just pay in person once you've got the item",
   },
+  {
+    name: "sexual",
+    pattern:
+      /\b(?:nudes?|nude pics|sext(?:ing)?|horny|dtf|porn|onlyfans|blowjob|handjob|dick(?!'?s\b)|cock|pussy|boobs|tits|cum(?! laude)|fuck me|(?:you|u)(?:'re| are| r)? (?:so )?(?:sexy|hot))\b/i,
+    reason: "i'm not sending that one. let's keep it about the item, this is a campus marketplace",
+  },
+  {
+    name: "abuse",
+    // Directed insults, threats and slurs. Casual swearing ("shit, running late") is fine.
+    pattern:
+      /\b(?:f+u+c*k+ (?:you|u|off)|stfu|kys|kill (?:yo)?urself|go die|(?:you|u)(?:'re| are| r)? (?:a |an |such a )?(?:bitch|slut|whore|cunt|piece of shit)|cunt|slut|whore|n[i1]gg(?:a|as|er|ers|uh)|f[a@]gg?(?:ot|ots|s)?|retard(?:ed|s)?|trann(?:y|ies)|chinks?|spics?|kikes?|wetbacks?|beaners?)\b/i,
+    reason: "that's not getting passed along. let's keep it friendly, everyone here is a fellow student",
+  },
 ];
 
 const WARN_RULES: Rule[] = [

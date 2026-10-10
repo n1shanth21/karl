@@ -3,16 +3,18 @@
 // Phase 0 stubs allow everything. TODO(Aarush, Phase B1): real rules + tests.
 
 import type { ListingDraft, SafetyVerdict } from "../types";
+import { checkItem } from "./prohibited";
 import { scanText } from "./scan";
 
-/** Block prohibited items (alcohol, drugs, meds, weapons, vapes, tickets, stolen-looking, digital accounts). */
-export function checkProhibited(_draft: ListingDraft): SafetyVerdict {
-  return { action: "allow" };
+/** Block prohibited items (alcohol, drugs, meds, weapons, vapes, tickets, digital accounts, counterfeit, adult). */
+export function checkProhibited(draft: ListingDraft): SafetyVerdict {
+  return checkItem(draft);
 }
 
 /**
  * Scan a message before Karl relays it to the other person.
- * block: phone numbers, emails, social handles, outside links, gift cards / wire requests.
+ * block: phone numbers, emails, social handles, outside links, gift cards / wire requests,
+ *        sexual content, directed insults and slurs (casual swearing is allowed).
  * warn:  "pay first" / deposit requests, pressure to move off-platform.
  * allow: everything normal ("omw", "running 5 late", "can we do the Pit instead").
  * The reason is shown to the user, so write it in Karl's voice.

@@ -22,6 +22,13 @@ const BLOCKED = [
   "i can do western union",
   "pay in bitcoin?",
   "send it as crypto",
+  "send nudes",
+  "you're so sexy",
+  "are you dtf",
+  "fuck you",
+  "stfu and give me the fridge",
+  "kys",
+  "you're a bitch",
 ];
 
 const WARNED = [
@@ -60,6 +67,13 @@ const NORMAL = [
   "pickup at 2pm works?",
   "is it 120 or 110?",
   "it's in room 2041 of Craige",
+  "shit i'm running late, sorry",
+  "damn that's a good price",
+  "hell yeah",
+  "fuck, i left my wallet. 10 min",
+  "got the mini fridge at dick's?",
+  "is it hot outside the union?",
+  "will it hook up to my tv",
 ];
 
 describe("scanRelayMessage", () => {
