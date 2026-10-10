@@ -29,6 +29,7 @@ You keep Karl safe and running: the scam and prohibited-item checks, the every-m
 ## Phase B1: safety · 5:30–8:00 PM
 - [x] `scanRelayMessage(text)`: fast regex rules first. **block**: phone numbers, emails, social handles (@…, "my insta"), URLs, gift cards, wire/crypto. **warn**: pay first, deposit, "venmo me now", "send half upfront", pressure ("only today", "text me on whatsapp"). The reason is in Karl's voice and shown to the user. Gemini only for borderline cases (optional).
 - [x] `checkProhibited(draft)`: alcohol, drugs, vapes, meds, weapons, tickets (UNC bans student-ticket resale), digital accounts/licenses, counterfeit → block with a friendly reason
+- [x] `checkImage(bytes, mimeType, userId)`: Gemini labels every inbound photo. explicit → block + ban sender; suggestive or check failed → block photo only. `isBanned(userId)`: in-memory ban list (restart clears it)
 - [ ] `allowMessage(userId)`: max `LIMITS.rateLimitMessagesPer10Min` per user (in-memory sliding window)
 - [ ] `tests/backend/safety.test.ts`: ≥15 scam messages + ≥15 normal ones ("omw", "running 5 late", "can we do the Pit instead", "is it still available", "$40 ok?"). **Normal messages must never be blocked.**
 **Finish line:** tests pass; tell Nishanth in chat it's merged-ready.
@@ -58,3 +59,37 @@ Read src/safety/index.ts and src/types.ts first. Show me a numbered plan and wai
 ## Requests (things I need from others)
 - **Nishanth (PLAN.md):** access-test result is already known from my Photon project (tested 2026-10-10). Registered phone → reply works. Unregistered phone → Photon auto-replies "didn't recognize your number"; nothing reaches our code. Also, each user is assigned **their own** line ("Texts on" in Photon → Users), so there's no single Karl number for the dashboard QR or a Discord post. Please record this and decide: add people by hand (max 100 users), or I build `POST /signup` in B3.
 - **Himagna:** I already have a Tiger Data service (pgvector 0.8.7 verified). I'll DM you the `DATABASE_URL` so we use one database instead of two.
+- **Nishanth (after Merge #1):** wire in `isBanned` + `checkImage`. Paste this into Claude Code on the `agent` branch:
+  ```
+  Read CLAUDE.md and team/nishanth.md. I'm Nishanth on the agent branch.
+  Task: wire Aarush's new image-safety + ban functions into the inbound pipeline and photo handling.
+  Show me a numbered plan first and wait for my OK.
+
+  Aarush added these to the safety contract (src/safety/index.ts, already merged to main):
+
+    // true if this user was banned for sending an explicit photo (in-memory, resets on restart)
+    isBanned(userId: string): boolean
+
+    // Gemini checks the photo. If explicit (nudity/sexual/gore/hate), it bans the user itself.
+    // reason is in Karl's voice; send it to the SENDER only.
+    checkImage(bytes: Uint8Array, mimeType: string, userId: string):
+      Promise<{ action: "allow" | "block"; reason?: string; banned: boolean }>
+
+  Where to call them:
+  1. Inbound pipeline (src/spectrum/inbound.ts): right after we resolve the user from the
+     message, if isBanned(user.id) → log it (phone masked with last4) and return.
+     No reply, no Gemini call, nothing else. This goes before "stop"/"help" handling too.
+  2. Every inbound image attachment, BEFORE db.savePhoto, before Gemini vision drafts a
+     listing, and before the relay forwards it to the other person:
+       const v = await checkImage(bytes, mimeType, user.id)
+       if (v.action === "block") → send v.reason to the sender, do NOT save/draft/forward
+       the photo, and stop handling this message.
+     Call it on the original bytes (HEIC is fine, Gemini reads it).
+  3. If v.banned and the user has an active match, cancel the match, put the listing back
+     to active, and tell the other person something neutral like "heads up, this one fell
+     through. want me to keep looking?" Never say why or show the banned user's info.
+
+  Tests: mock checkImage/isBanned in tests/agent. Cover: banned user gets no reply;
+  blocked photo is never saved or relayed; allowed photo continues normally.
+  Then bun run check && bun test, commit, push.
+  ```

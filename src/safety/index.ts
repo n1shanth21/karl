@@ -3,6 +3,8 @@
 // Phase 0 stubs allow everything. TODO(Aarush, Phase B1): real rules + tests.
 
 import type { ListingDraft, SafetyVerdict } from "../types";
+import { isBanned as isBannedUser } from "./bans";
+import { checkPhoto, type ImageClassifier, type ImageVerdict } from "./image";
 import { checkItem } from "./prohibited";
 import { scanText } from "./scan";
 
@@ -26,4 +28,24 @@ export async function scanRelayMessage(text: string): Promise<SafetyVerdict> {
 /** Per-user rate limit. Returns false if this user should be throttled right now. */
 export function allowMessage(_userId: string): boolean {
   return true;
+}
+
+/**
+ * Check an inbound photo BEFORE it is saved, drafted into a listing, or relayed.
+ * explicit (nudity, sexual, gore, hate) → block AND ban the sender.
+ * suggestive or couldn't check → block the photo only.
+ * Send `reason` to the sender only. `classify` is only passed by tests.
+ */
+export async function checkImage(
+  bytes: Uint8Array,
+  mimeType: string,
+  userId: string,
+  classify?: ImageClassifier,
+): Promise<ImageVerdict> {
+  return checkPhoto(bytes, mimeType, userId, classify);
+}
+
+/** True if this user was banned (explicit photo). Karl should ignore them completely. */
+export function isBanned(userId: string): boolean {
+  return isBannedUser(userId);
 }
