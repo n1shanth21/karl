@@ -74,7 +74,7 @@ h2 { font-size: 1rem; text-transform: uppercase; letter-spacing: 0.08em; color: 
 .text-karl { text-align: center; }
 .text-karl h2 { text-align: left; }
 .phone a { color: inherit; text-decoration: none; }
-.phone { font-size: clamp(1.5rem, 4vw, 2.4rem); font-weight: 800; color: var(--blue); margin-bottom: 12px; word-break: break-all; }
+.phone { font-size: clamp(1.2rem, 3vw, 1.8rem); font-weight: 800; color: var(--blue); margin-bottom: 12px; }
 .qr { width: 160px; height: 160px; display: block; margin: 0 auto 12px; border-radius: 12px; background: #fff; }
 .qr-empty { display: grid; place-items: center; color: #556; font-weight: 600; }
 
