@@ -115,3 +115,6 @@ export type Stats = {
   listingsPerHour: { hour: string; count: number }[]; // from Tiger continuous aggregate
   updatedAt: string; // ISO
 };
+
+export type ActivityStep = { key: string; label: string; status: "pending" | "active" | "done" | "failed"; at: string | null };
+export type ActivityRun = { id: string; kind: "sell" | "buy"; firstName: string; itemTitle: string | null; startedAt: string; steps: ActivityStep[] };

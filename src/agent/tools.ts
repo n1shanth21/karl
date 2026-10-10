@@ -7,6 +7,7 @@ import { cancelWant, myStuff, pickResult, saveWant, searchAndShow } from "../flo
 import { cancelMatch, confirmHappened, respondToMatch, setMeetup } from "../flows/match";
 import { cancelDraft, confirmDraft, removeListing, updateDraft } from "../flows/sell";
 import type { User } from "../types";
+import { setItem, setStep, startRun } from "./activity";
 import { CONDITIONS, type ToolSpec } from "./gemini";
 
 type Args = Record<string, unknown>;
@@ -83,9 +84,18 @@ export const tools: Tool[] = [
       const query = str(args.query);
       const max = args.max_price_dollars === undefined ? null : cents(args.max_price_dollars);
       if (!query) return bad("query is required");
+      const run = startRun("buy", user.firstName);
+      for (const key of ["received", "understood"]) setStep(run, key, "done");
+      setStep(run, "search", "active");
       const shown = await searchAndShow(user, query, max);
-      if (shown.length) return { found: shown.length, shown: shown.map((l) => ({ title: l.title, price_dollars: toDollars(l.priceCents) })) };
+      setStep(run, "search", "done");
+      if (shown.length) {
+        setItem(run, shown[0]!.title);
+        setStep(run, "results_sent", "done");
+        return { found: shown.length, shown: shown.map((l) => ({ title: l.title, price_dollars: toDollars(l.priceCents) })) };
+      }
       await saveWant(user, query, max);
+      setStep(run, "want_saved", "done");
       return { found: 0, saved_want: true };
     },
   },
