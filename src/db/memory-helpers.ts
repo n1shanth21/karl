@@ -3,6 +3,7 @@
 
 import { config } from "../config";
 import type { Listing, Match, Stats, User, Want } from "../types";
+import { photoUrl } from "./pg/client";
 
 const ACTIVE_MATCH = ["proposed", "accepted", "meetup_set"];
 
@@ -26,7 +27,7 @@ export function computeStats(users: Map<string, User>, listings: Map<string, Lis
       title: l.title,
       priceCents: l.priceCents,
       sellerFirstName: users.get(l.sellerId)?.firstName ?? "someone",
-      photoUrl: l.photoId ? `${config.publicBaseUrl}/photos/${l.photoId}` : null,
+      photoUrl: l.photoId ? photoUrl(config.publicBaseUrl, l.photoId) : null,
       status: l.status,
       createdAt: l.createdAt.toISOString(),
     }));
