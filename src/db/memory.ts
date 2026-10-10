@@ -23,6 +23,9 @@ export function createMemoryDb(): Db {
     return value;
   };
   const ACTIVE_MATCH = ["proposed", "accepted", "meetup_set"];
+  // Same as postgres: keys whose value is undefined are ignored, not written.
+  const defined = <T extends object>(patch: T): Partial<T> =>
+    Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) as Partial<T>;
 
   return {
     async getUser(userId) {
@@ -37,7 +40,7 @@ export function createMemoryDb(): Db {
       return user;
     },
     async updateUser(userId, patch) {
-      const user = { ...must(users.get(userId), "user"), ...patch };
+      const user = { ...must(users.get(userId), "user"), ...defined(patch) };
       users.set(userId, user);
       return user;
     },
@@ -74,7 +77,7 @@ export function createMemoryDb(): Db {
       return listings.get(listingId) ?? null;
     },
     async updateListing(listingId, patch) {
-      const listing = { ...must(listings.get(listingId), "listing"), ...patch };
+      const listing = { ...must(listings.get(listingId), "listing"), ...defined(patch) };
       listings.set(listingId, listing);
       return listing;
     },
@@ -131,7 +134,7 @@ export function createMemoryDb(): Db {
       return matches.get(matchId) ?? null;
     },
     async updateMatch(matchId, patch) {
-      const match = { ...must(matches.get(matchId), "match"), ...patch };
+      const match = { ...must(matches.get(matchId), "match"), ...defined(patch) };
       matches.set(matchId, match);
       return match;
     },
