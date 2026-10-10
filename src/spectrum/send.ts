@@ -11,6 +11,18 @@ import { rememberRef, type Ref } from "./refs";
 let app: App | null = null;
 // Spaces we've seen this process (covers terminal + tests, where there's no lookup by id).
 const knownSpaces = new Map<string, Space>();
+// The Ref of the last tagged message Karl sent each user = the question they're most likely answering.
+const lastRefs = new Map<string, Ref>();
+
+/** What Karl last asked this user about (draft, offer, match_request, checkin, ...), if anything. */
+export function lastRefTo(userId: string): Ref | undefined {
+  return lastRefs.get(userId);
+}
+
+/** Forget the pending question once it's answered. */
+export function clearLastRef(userId: string): void {
+  lastRefs.delete(userId);
+}
 
 export function initSend(spectrumApp: App) {
   app = spectrumApp;
@@ -40,7 +52,10 @@ export async function sendTo(user: User, content: ContentInput, opts: { logText?
   if (user.optedOut) return undefined;
   const space = await spaceFor(user);
   const sent = await space.send(content);
-  if (sent && opts.ref) rememberRef(sent.id, opts.ref);
+  if (opts.ref) {
+    if (sent) rememberRef(sent.id, opts.ref);
+    lastRefs.set(user.id, opts.ref);
+  }
   const text = opts.logText ?? (typeof content === "string" ? content : "[rich content]");
   await db.saveOutbound({ userId: user.id, text });
   console.log(`[out ${last4(user.phone)}] ${text}`);
