@@ -61,6 +61,7 @@ export async function activateSemantic(listing: Listing, now: Date = new Date())
  * The rules for proactive texts, shared by the vector and keyword paths. `matches` must be best-first.
  * - each buyer at most once per listing, ever (a relisted item doesn't re-ping anyone)
  * - each buyer at most LIMITS.maxProactivePingsPerUserPerDay pings per 24 h
+ * - never someone who texted "stop" (seed users are always opted out, so they are never pinged)
  * - the ping is logged before match_found is emitted, so the cap counts it even if a listener is slow
  */
 export async function pingBuyers(listing: Listing, matches: { want: Want; score: number }[], now: Date = new Date()): Promise<void> {
@@ -69,6 +70,9 @@ export async function pingBuyers(listing: Listing, matches: { want: Want; score:
     const buyerId = want.buyerId;
     if (seen.has(buyerId)) continue;
     seen.add(buyerId);
+
+    const buyer = await db.getUser(buyerId);
+    if (!buyer || buyer.optedOut) continue;
 
     const alreadyForListing = await db.countEventsSince(PING_EVENT, { userId: buyerId, listingId: listing.id, since: new Date(0) });
     if (alreadyForListing > 0) continue;

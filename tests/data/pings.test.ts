@@ -46,6 +46,13 @@ test("the daily cap applies to every path that uses pingBuyers", async () => {
   expect(pinged).toEqual([]);
 });
 
+test("opted-out buyers (stop, or seed users) are never pinged", async () => {
+  const { buyer, want, listing } = await setup();
+  await db.updateUser(buyer.id, { optedOut: true });
+  await pingBuyers(listing, [{ want, score: 0.9 }]);
+  expect(pinged).toEqual([]);
+});
+
 test("countEventsSince can be narrowed to one listing", async () => {
   const { buyer, listing } = await setup();
   await db.logEvent(PING_EVENT, { userId: buyer.id, listingId: listing.id });
