@@ -4,6 +4,7 @@
 
 import { Emoji, type Content, type Message, type Space } from "spectrum-ts";
 import { runAgentTurn } from "../agent/loop";
+import { cleanFirstName } from "../agent/tools";
 import { LIMITS } from "../config";
 import { db } from "../db";
 import { confirmDraft, draftFromPhoto } from "../flows/sell";
@@ -28,6 +29,39 @@ const YES: string[] = [Emoji.love, Emoji.like];
 // A short typed answer to Karl's last question counts like a tapback (no Gemini needed).
 const YES_TEXT = /^(y|ya|yes|yea|yeah|yep|yup|sure|ok|okay|sounds good|deal|do it|post it|👍|❤️)(?!\w)/i;
 const NO_TEXT = /^(n|no|nah|nope|not really|pass)(?!\w)/i;
+// Words that are never a first name (greetings, yes/no, commands, filler, request words, common items).
+const NOT_NAMES = new Set(
+  (
+    "hi hey hello yo sup hiya howdy karl yes no yeah yep yup nah nope sure ok okay k y n pass " +
+    "help stop start cancel sell buy list thanks thank thx ty lol lmao haha cool nothing idk none nvm maybe please sorry " +
+    "good fine great here new back not just there what why how who where when need want looking selling buying have got " +
+    "interested a an the i me my you it its is am are do can any anyone someone something lamp fridge desk chair couch " +
+    "bike book books textbook textbooks tv monitor laptop microwave furniture stuff"
+  ).split(" "),
+);
+const NAME_INTRO = /^(?:i['’]?m|i am|it['’]?s|my name is|my name['’]s|call me|this is)\s+(.+)$/i;
+
+/** Is `text` a reply to "what's your first name?" Returns the name plus any request that came with it ("i'm maya, need a lamp"). */
+/** Only treat a reply as a name right after Karl asked for one (so "omw" mid-deal never becomes a name). */
+async function karlAskedForName(userId: string): Promise<boolean> {
+  const lastOut = (await db.recentMessages(userId, 6)).findLast((m) => m.direction === "out");
+  return !!lastOut && /first name/i.test(lastOut.text);
+}
+
+export function parseNameReply(text: string): { name: string; rest: string } | null {
+  const trimmed = text.trim();
+  const intro = NAME_INTRO.exec(trimmed);
+  const [head = "", ...tail] = (intro ? intro[1]! : trimmed).split(/[,;.!?\n]+/);
+  const rest = intro ? tail.join(" ").trim() : "";
+  if (!intro && tail.some((t) => t.trim())) return null; // bare "name, more text" is a request, not a name
+  const words = head.trim().split(/\s+/);
+  if (words.length > 2 || words.some((w) => NOT_NAMES.has(w.toLowerCase().replace(/[’]/g, "'")))) return null;
+  // Two words with no "i'm" in front must look like a full name: "Maya Chen".
+  if (words.length === 2 && !intro && !words.every((w) => /^[A-Z]/.test(w))) return null;
+  const name = cleanFirstName(words[0]!.replace(/[’]/g, "'"));
+  return name ? { name, rest } : null;
+}
+
 // Only these inbound events are real messages; read receipts, typing, edits, polls etc. are ignored.
 const MESSAGE_TYPES = ["text", "attachment", "reply", "reaction", "voice"];
 
@@ -197,6 +231,16 @@ async function answerBatch(user: User, parts: Part[]): Promise<void> {
     if (!images.length && GREETING.test(text.trim())) return;
   }
   if (images.length) return draftPhoto(user, images, text);
+  if (text && !user.firstName && !parts.some((p) => p.isNew) && (await karlAskedForName(user.id))) {
+    const named = parseNameReply(text); // plain code: no Gemini needed for the common "Aayush" reply
+    if (named) {
+      user = await db.updateUser(user.id, { firstName: named.name });
+      if (!named.rest) {
+        await sendTo(user, `nice to meet you, ${named.name}! send me a photo to sell something, or tell me what you're looking for`);
+        return;
+      }
+    }
+  }
   if (text && (await answerShortcut(user, text))) return;
   if (text) return answerText(user, text, parts.findLast((p) => p.matchId)?.matchId);
   await sendTo(user, "i can only read texts and photos right now");

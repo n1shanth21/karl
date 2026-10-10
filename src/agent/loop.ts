@@ -32,24 +32,37 @@ export async function runAgentTurn(user: User, text: string): Promise<string | n
     const system = buildSystemPrompt({ user, stuff: await myStuff(user) });
 
     let usedTools = false;
+    const toolsCalled: string[] = [];
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
       const reply = await gemini.chat({ system, contents, tools: round < MAX_TOOL_ROUNDS ? tools : [] }); // last round: no tools, force words
       const calls = (reply.parts ?? []).filter((p) => p.functionCall);
       if (calls.length === 0) {
         const answer = (reply.parts ?? []).filter((p) => p.text && !p.thought).map((p) => p.text).join("").trim();
-        return answer || (usedTools ? null : FALLBACK);
+        if (answer) return answer;
+        if (usedTools) return null;
+        console.error(`[agent] FALLBACK (empty answer, no tools) reply parts: ${partTypes(reply.parts)}`);
+        return FALLBACK;
       }
       usedTools = true;
+      toolsCalled.push(...calls.map((c) => c.functionCall!.name ?? "?"));
       contents.push(reply); // as returned: Gemini 3 needs its thought signatures echoed back
       const responses: Part[] = [];
       for (const call of calls) responses.push(await runTool(user, call));
       contents.push({ role: "user", parts: responses });
     }
+    console.error(`[agent] FALLBACK (max tool rounds) tools called: ${toolsCalled.join(", ")}`);
     return FALLBACK; // still asking for tools after the last round
   } catch (err) {
-    console.error("[agent] turn failed:", err);
+    console.error(`[agent] FALLBACK (error): ${err instanceof Error ? err.message : String(err)}`);
+    if (err instanceof Error && err.stack) console.error(err.stack);
     return FALLBACK;
   }
+}
+
+/** What kinds of parts a Gemini reply had (no user text), e.g. "thought, text" or "none". */
+function partTypes(parts: Part[] | undefined): string {
+  if (!parts?.length) return "none";
+  return parts.map((p) => (p.functionCall ? "functionCall" : p.thought ? "thought" : p.text !== undefined ? "text" : "other")).join(", ");
 }
 
 async function runTool(user: User, part: Part): Promise<Part> {

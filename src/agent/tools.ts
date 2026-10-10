@@ -14,6 +14,13 @@ type Args = Record<string, unknown>;
 type Tool = ToolSpec & { run: (user: User, args: Args) => Promise<unknown> };
 
 const NAME_PATTERN = /^[a-z][a-z'-]{0,19}$/i;
+
+/** "maya chen" / "Maya" -> "Maya" (first word, capitalized); null when it doesn't look like a first name. */
+export function cleanFirstName(raw: string): string | null {
+  const word = raw.trim().split(/\s+/)[0];
+  if (!word || !NAME_PATTERN.test(word)) return null;
+  return word[0]!.toUpperCase() + word.slice(1);
+}
 const bad = (error: string) => ({ error });
 const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
 const cents = (dollars: unknown) => (typeof dollars === "number" && dollars >= 0 ? Math.round(dollars * 100) : null);
@@ -31,10 +38,10 @@ export const tools: Tool[] = [
     description: "Save the user's first name once they tell you.",
     parameters: params({ first_name: string("first name only") }, ["first_name"]),
     async run(user, args) {
-      const word = str(args.first_name)?.split(/\s+/)[0];
-      if (!word) return bad("first_name is required");
-      if (!NAME_PATTERN.test(word)) return bad("that doesn't look like a first name (letters only, no digits or handles)");
-      const name = word[0]!.toUpperCase() + word.slice(1);
+      const raw = str(args.first_name);
+      if (!raw) return bad("first_name is required");
+      const name = cleanFirstName(raw);
+      if (!name) return bad("that doesn't look like a first name (letters only, no digits or handles)");
       await db.updateUser(user.id, { firstName: name });
       return { ok: true, first_name: name };
     },
