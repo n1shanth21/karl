@@ -4,5 +4,5 @@
 //   desk-lamp request <= 0.653; demo pairs: "drinks cold" -> mini fridge 0.691, "desk lamp under $20" -> 0.749.
 // Search shows results the buyer asked for, so it is looser. A proactive match texts someone unprompted,
 // so it is stricter. These replace LIMITS.searchThreshold / LIMITS.matchThreshold (config.ts) in postgres mode.
-export const SEARCH_MIN_SCORE = 0.62;
+export const SEARCH_MIN_SCORE = 0.64; // 0.62 let "lamp oil" (0.624) show up for "drinks cold" in a real run
 export const MATCH_MIN_SCORE = 0.67;
