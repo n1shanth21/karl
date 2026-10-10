@@ -15,7 +15,7 @@ import {
   newWant,
   soldPricesForCategory,
 } from "./memory-helpers";
-import type { Db } from "./types";
+import { DB_OWNED_EVENTS, type Db } from "./types";
 
 const id = () => crypto.randomUUID();
 
@@ -163,6 +163,7 @@ export function createMemoryDb(): Db {
     },
 
     async logEvent(type, data) {
+      if (DB_OWNED_EVENTS.has(type)) return; // already logged by the write itself (see DB_OWNED_EVENTS)
       record(type, { userId: data?.userId, listingId: data?.listingId, payload: data?.payload });
     },
     async getStats(): Promise<Stats> {
