@@ -16,7 +16,7 @@ Buying and selling used stuff at UNC mostly happens in scattered GroupMe, Instag
 
 ## What it does
 
-Karl is one phone number UNC students text. There is no app.
+Karl is a contact UNC students text. Sign up once at the QR link, get your Karl line, and you are in. There is no app.
 
 - **Sell:** text a photo. Karl drafts a title, condition and price ("mini fridge, good condition, $45. post it?"). Reply "yes" or tapback a heart and it's live.
 - **Buy:** text "need a mini fridge under $60". Karl replies with up to 3 matches (photo, title, price) and you pick one.
@@ -78,7 +78,7 @@ Karl never handles money. People pay each other directly, and Karl only reminds 
 - GitHub: https://github.com/n1shanth21/karl [VERIFY repo is public and URL is final]
 - Demo video: {{videoUrl}}
 - Live dashboard: {{dashboardUrl}}
-- Text Karl: {{karlNumber}}
+- Try Karl: https://karl-production.up.railway.app/signup (QR on the dashboard)
 - .Tech domain: {{techDomain}} [VERIFY]
 
 ## Submission checklist
