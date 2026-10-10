@@ -157,6 +157,18 @@ describe.skipIf(!hasDatabase)("postgres: vector search", () => {
     expect(await db.countEventsSince("match_pinged", { userId: "nope", since: hourAgo })).toBe(0);
   });
 
+  test("countEventsSince can be narrowed to one listing (once-per-listing ping rule)", async () => {
+    const a = await newUser(db);
+    const l1 = crypto.randomUUID();
+    await db.logEvent("match_pinged", { userId: a.id, listingId: l1 });
+    await db.logEvent("match_pinged", { userId: a.id, listingId: crypto.randomUUID() });
+    const since = new Date(0);
+    expect(await db.countEventsSince("match_pinged", { userId: a.id, since })).toBe(2);
+    expect(await db.countEventsSince("match_pinged", { userId: a.id, since, listingId: l1 })).toBe(1);
+    expect(await db.countEventsSince("match_pinged", { userId: a.id, since, listingId: crypto.randomUUID() })).toBe(0);
+    expect(await db.countEventsSince("match_pinged", { userId: a.id, since, listingId: "nope" })).toBe(0);
+  });
+
   test("set*Embedding with a malformed id is a no-op, an unknown uuid changes nothing", async () => {
     await db.setListingEmbedding("nope", q);
     await db.setWantEmbedding("nope", q);

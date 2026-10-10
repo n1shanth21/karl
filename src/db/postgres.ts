@@ -3,6 +3,7 @@
 
 import { config } from "../config";
 import { makeSql } from "./pg/client";
+import { extrasQueries } from "./pg/extras";
 import { listingsQueries } from "./pg/listings";
 import { matchesQueries } from "./pg/matches";
 import { messagesQueries } from "./pg/messages";
@@ -30,6 +31,7 @@ export function createPostgresDb(opts: { url?: string; schema?: string } = {}): 
     ...matchesQueries(sql),
     ...statsQueries(sql),
     ...vectorsQueries(sql),
+    ...extrasQueries(sql),
     end: () => sql.end({ timeout: 1 }),
   };
 }

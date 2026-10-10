@@ -122,6 +122,10 @@ export function statsQueries(sql: Sql): StatsQueries {
       }
       const tables = ["users", "photos", "listings", "wants", "matches", "conversation_messages", "events"];
       await sql`truncate ${sql(tables.map((t) => `${schema}.${t}`))} restart identity cascade`;
+      // Already-materialized hours would keep their old counts until the next policy run; refresh now.
+      // (Runs as its own autocommitted statement, which Timescale requires.)
+      const [{ cagg }] = await sql<{ cagg: string | null }[]>`select to_regclass(${`${schema}.events_hourly`})::text as cagg`;
+      if (cagg) await sql`call refresh_continuous_aggregate(${cagg}::regclass, null, null)`;
     },
   };
 }

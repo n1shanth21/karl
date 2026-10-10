@@ -11,6 +11,8 @@ import type { Listing, SearchResult, Want } from "../types";
 import { keywordScore } from "./keyword";
 import { embedListing, matchListingByVector, pingBuyers, searchSemantic, wantSemantic } from "./semantic";
 
+export { backfillEmbeddings } from "./backfill";
+
 const semanticOn = config.dbMode === "postgres";
 const RETRY_MS = 60_000;
 
@@ -29,7 +31,7 @@ export async function searchListings(query: string, opts: { maxPriceCents?: numb
       console.error("[matching] semantic search failed, falling back to keywords", err);
     }
   }
-  return keywordSearch(query, opts);
+  return semanticOn ? keywordSearchFromDb(query, opts) : keywordSearch(query, opts);
 }
 
 /**
@@ -45,9 +47,19 @@ export async function onListingActivated(listing: Listing): Promise<void> {
     } catch (err) {
       // Gemini down or over quota: match by keywords now, and embed again in a minute so search can find it.
       console.error("[matching] embedding listing failed; keyword match now, retrying in 60s", err);
-      retryLater(async () => matchListingByVector(listing, await embedListing(listing)));
+      retryLater(async () => {
+        // A minute later it may already be held or sold: only ping about items still for sale.
+        const fresh = await db.getListing(listing.id);
+        if (fresh?.status === "active") await matchListingByVector(fresh, await embedListing(fresh));
+      });
     }
-    if (vec) return matchListingByVector(listing, vec);
+    if (vec) {
+      try {
+        return await matchListingByVector(listing, vec);
+      } catch (err) {
+        console.error("[matching] vector matching failed, falling back to keywords", err);
+      }
+    }
   }
   await pingBuyers(listing, await keywordCandidates(listing));
 }
@@ -69,17 +81,36 @@ function retryLater(fn: () => Promise<void>): void {
   timer.unref?.();
 }
 
-async function keywordSearch(query: string, opts: { maxPriceCents?: number | null; excludeSellerId?: string }): Promise<SearchResult[]> {
+type SearchOpts = { maxPriceCents?: number | null; excludeSellerId?: string };
+
+function rankByKeywords(query: string, listings: Listing[], opts: SearchOpts): SearchResult[] {
   const results: SearchResult[] = [];
-  for (const listing of activeListings.values()) {
-    const fresh = await db.getListing(listing.id);
-    if (!fresh || fresh.status !== "active") continue;
-    if (opts.excludeSellerId && fresh.sellerId === opts.excludeSellerId) continue;
-    if (opts.maxPriceCents != null && fresh.priceCents > opts.maxPriceCents) continue;
-    const score = keywordScore(query, `${fresh.title} ${fresh.category} ${fresh.description}`);
-    if (score >= KEYWORD_THRESHOLD) results.push({ listing: fresh, score });
+  for (const listing of listings) {
+    if (listing.status !== "active") continue;
+    if (opts.excludeSellerId && listing.sellerId === opts.excludeSellerId) continue;
+    if (opts.maxPriceCents != null && listing.priceCents > opts.maxPriceCents) continue;
+    const score = keywordScore(query, `${listing.title} ${listing.category} ${listing.description}`);
+    if (score >= KEYWORD_THRESHOLD) results.push({ listing, score });
   }
   return results.sort((a, b) => b.score - a.score).slice(0, LIMITS.maxSearchResults);
+}
+
+/** Memory mode: only listings this process has seen (re-read from the db so status/price are fresh). */
+async function keywordSearch(query: string, opts: SearchOpts): Promise<SearchResult[]> {
+  const fresh: Listing[] = [];
+  for (const listing of activeListings.values()) {
+    const row = await db.getListing(listing.id);
+    if (row) fresh.push(row);
+  }
+  return rankByKeywords(query, fresh, opts);
+}
+
+/**
+ * Postgres mode fallback (Gemini down): read candidates from the database, because this process's Maps
+ * are empty after a restart. Exported so tests can call it without depending on DB_MODE at import time.
+ */
+export async function keywordSearchFromDb(query: string, opts: SearchOpts = {}): Promise<SearchResult[]> {
+  return rankByKeywords(query, await db.activeListings(200), opts);
 }
 
 async function keywordCandidates(listing: Listing): Promise<{ want: Want; score: number }[]> {

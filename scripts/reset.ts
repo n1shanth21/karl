@@ -2,8 +2,8 @@
 //   bun scripts/reset.ts --yes                    -> the REAL database (public schema)
 //   bun scripts/reset.ts --yes --schema test_x    -> a throwaway schema
 //   bun scripts/reset.ts --yes --no-seed          -> wipe only
-// Refuses without --yes. The continuous aggregate (events_hourly) can't be refreshed from inside a
-// transaction, so we skip that: Timescale's real-time aggregation still reads the (now empty) events.
+// Refuses without --yes. db.reset() also refreshes the events_hourly continuous aggregate, so the
+// dashboard chart doesn't keep showing pre-reset hours.
 
 import { createPostgresDb } from "../src/db/postgres";
 import { seed } from "./seed";

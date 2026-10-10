@@ -46,7 +46,11 @@ export async function seed(db: Db, opts: { force?: boolean } = {}): Promise<numb
     }
   }
 
-  const created = [];
+  // Embed everything first, in one call (saves Gemini quota). If Gemini fails here, nothing has been
+  // written yet, so re-running is safe. Seed listings never ping anyone (no onListingActivated).
+  const vectors = await embedDocuments(listings);
+
+  let created = 0;
   let withPhoto = 0;
   for (const l of listings) {
     let photoId: string | null = null;
@@ -62,15 +66,13 @@ export async function seed(db: Db, opts: { force?: boolean } = {}): Promise<numb
     }
     const draft = { title: l.title, description: l.description, category: l.category, condition: l.condition, priceCents: l.priceCents, confidence: 1 };
     const listing = await db.createListing({ sellerId: sellers.get(l.sellerFirstName)!, draft, photoId });
-    created.push(await db.updateListing(listing.id, { status: "active" }));
+    await db.setListingEmbedding(listing.id, vectors[created]!); // embedding before it goes live
+    await db.updateListing(listing.id, { status: "active" });
+    created++;
   }
 
-  // Embed everything in one call to save Gemini quota (seed listings should not ping anyone).
-  const vectors = await embedDocuments(created);
-  for (let i = 0; i < created.length; i++) await db.setListingEmbedding(created[i]!.id, vectors[i]!);
-
-  console.log(`seeded ${created.length} listings from ${source} (${sellers.size} sellers, ${withPhoto} photos, ${vectors.length} embeddings)`);
-  return created.length;
+  console.log(`seeded ${created} listings from ${source} (${sellers.size} sellers, ${withPhoto} photos, ${vectors.length} embeddings)`);
+  return created;
 }
 
 if (import.meta.main) {

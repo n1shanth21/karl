@@ -227,6 +227,27 @@ export function createMemoryDb(): Db {
       ).length;
     },
 
+    async activeListings(limit) {
+      return [...listings.values()]
+        .filter((l) => l.status === "active")
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+        .slice(0, Math.max(0, limit));
+    },
+    // Memory never stores embeddings, so there is never anything to backfill.
+    async activeListingsMissingEmbedding() {
+      return [];
+    },
+    async openWantsMissingEmbedding() {
+      return [];
+    },
+    async soldPricesForCategory(category, limit) {
+      return [...listings.values()]
+        .filter((l) => l.status === "sold" && l.category.toLowerCase() === category.toLowerCase())
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+        .slice(0, Math.max(0, limit))
+        .map((l) => l.priceCents);
+    },
+
     async reset() {
       users = new Map();
       listings = new Map();
