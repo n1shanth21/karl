@@ -5,6 +5,7 @@ import { registerNotifications } from "./agent/notifications";
 import { config } from "./config";
 import { startHttp } from "./http";
 import { startJobs } from "./jobs";
+import { backfillEmbeddings } from "./matching";
 import { startSpectrum } from "./spectrum/client";
 import { handleInbound } from "./spectrum/inbound";
 import { initSend } from "./spectrum/send";
@@ -14,6 +15,8 @@ console.log(`[karl] booting: messaging=${config.messagingMode} db=${config.dbMod
 startHttp();
 startJobs();
 registerNotifications();
+// Embed anything that missed it while Gemini was down (not awaited: texts must start flowing).
+if (config.dbMode === "postgres") backfillEmbeddings().catch((e) => console.error("[karl] backfill failed", e));
 
 const app = await startSpectrum();
 initSend(app);

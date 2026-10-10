@@ -16,6 +16,8 @@ export interface GeminiApi {
   /** One model turn. Returns the model's Content untouched: Gemini 3 needs it (thought signatures
    *  included) appended to the history as-is on the next call. */
   chat(req: { system: string; contents: Content[]; tools: ToolSpec[] }): Promise<Content>;
+  /** Which listing titles ARE the item the buyer asked for (same kind of item)? 0-based indices; [] = none. */
+  pickRelevant(request: string, titles: string[]): Promise<number[]>;
 }
 
 let client: GoogleGenAI | null = null;
@@ -76,19 +78,52 @@ async function chat(req: { system: string; contents: Content[]; tools: ToolSpec[
   return content;
 }
 
-const real: GeminiApi = { describeItem, chat };
-let impl: GeminiApi = real;
+const RELEVANT_SCHEMA = {
+  type: "object",
+  properties: { indices: { type: "array", items: { type: "integer" }, description: "0-based indices of the titles that are the requested item" } },
+  required: ["indices"],
+};
+
+async function pickRelevant(request: string, titles: string[]): Promise<number[]> {
+  const list = titles.map((t, i) => `${i}: ${t}`).join("\n");
+  const prompt =
+    `A buyer texted: "${request}"\nWhich of these listings ARE the item they asked for? Same kind of item only: ` +
+    `a desk fan is not a desk lamp, but a mini fridge is "something to keep drinks cold". Return the 0-based indices, or an empty list if none.\n${list}`;
+  const res = await ai().models.generateContent({
+    model: config.geminiModel,
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseJsonSchema: RELEVANT_SCHEMA,
+      thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+      abortSignal: AbortSignal.timeout(10_000),
+    },
+  });
+  const { indices } = JSON.parse(res.text ?? "{}") as { indices?: unknown };
+  if (!Array.isArray(indices)) throw new Error("Gemini returned no indices");
+  return indices.filter((i): i is number => Number.isInteger(i) && i >= 0 && i < titles.length);
+}
+
+const real: GeminiApi = { describeItem, chat, pickRelevant };
+// Under `bun test` the real API is off limits (bun loads .env, so a missing fake would bill a real call).
+const offline = (name: string) => async (): Promise<never> => {
+  throw new Error(`real Gemini ${name}() called from a test: fake it with setGeminiForTests`);
+};
+const base: GeminiApi =
+  process.env.NODE_ENV === "test" ? { describeItem: offline("describeItem"), chat: offline("chat"), pickRelevant: offline("pickRelevant") } : real;
+let impl: GeminiApi = base;
 
 export const gemini: GeminiApi = {
   describeItem: (jpeg, caption) => impl.describeItem(jpeg, caption),
   chat: (req) => impl.chat(req),
+  pickRelevant: (request, titles) => impl.pickRelevant(request, titles),
 };
 
 export function setGeminiForTests(fake: Partial<GeminiApi>): void {
   impl = { ...impl, ...fake };
 }
 
-/** Put the real Gemini back after a test faked it. */
+/** Drop a test's fakes (back to the offline guard under bun test). */
 export function resetGeminiForTests(): void {
-  impl = real;
+  impl = base;
 }

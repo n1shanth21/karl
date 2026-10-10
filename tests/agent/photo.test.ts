@@ -1,6 +1,10 @@
-import { expect, test } from "bun:test";
+import { expect, test as baseTest } from "bun:test";
+import { config } from "../../src/config";
 import { db } from "../../src/db";
 import { photoAttachment, toJpeg } from "../../src/flows/photo";
+
+// These touch the shared db: never run them against the real postgres database.
+const test = config.dbMode === "postgres" ? baseTest.skip : baseTest;
 
 test("toJpeg passes jpeg through unchanged", async () => {
   const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);

@@ -1,3 +1,5 @@
+import { registerNotifications } from "../../src/agent/notifications";
+import { bus } from "../../src/bus";
 import { afterAll, beforeEach, expect, mock, spyOn, test } from "bun:test";
 import type { Message, Space } from "spectrum-ts";
 import * as loop from "../../src/agent/loop";
@@ -12,7 +14,7 @@ import { createBatcher } from "../../src/spectrum/debounce";
 import { lookupRef, rememberRef } from "../../src/spectrum/refs";
 import { lastRefTo, sendTo } from "../../src/spectrum/send";
 import type { Listing } from "../../src/types";
-import { fakeSpace, lastTextTo, resetAll, sentTo } from "./helpers";
+import { fakeSpace, fakeUser, lastTextTo, resetAll, sentTo } from "./helpers";
 
 // Flows and the agent loop are written by other people: replace them with spies.
 const runAgentTurn = spyOn(loop, "runAgentTurn");
@@ -135,6 +137,22 @@ test("❤️ on a draft confirms it", async () => {
   await send(msg({ type: "reaction", emoji: "❤️", target: { id: "draft-msg" } }));
   expect(confirmDraft).toHaveBeenCalledWith(expect.objectContaining({ id: user.id }), "listing-1");
   expect(lastTextTo(user)).toContain("it's live");
+});
+
+test("❤️ on an offer asks the seller and marks that want matched", async () => {
+  const user = await returningUser();
+  const seller = await fakeUser("Sam");
+  const draft = { title: "Mini fridge", description: "works", category: "fridge", condition: "good" as const, priceCents: 4500, confidence: 0.9 };
+  const listing = await db.updateListing((await db.createListing({ sellerId: seller.id, draft, photoId: null })).id, { status: "active" });
+  const want = await db.createWant({ buyerId: user.id, queryText: "fridge", maxPriceCents: null });
+  // Real path: the match_found notification sends the ping (and remembers which want it was for).
+  registerNotifications();
+  bus.emit("match_found", { wantId: want.id, listingId: listing.id, buyerId: user.id, score: 0.9 });
+  for (let i = 0; i < 100 && !lastTextTo(user).includes("want it?"); i++) await new Promise((r) => setTimeout(r, 5));
+  const ping = sentTo(user).at(-1)!;
+  await send(msg({ type: "reaction", emoji: "❤️", target: { id: ping.id } }));
+  expect(lastTextTo(user)).toContain("asked the seller");
+  expect((await db.getWant(want.id))?.status).toBe("matched");
 });
 
 test("👎 on a match request declines it and sends the reply", async () => {

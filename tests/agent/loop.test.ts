@@ -14,6 +14,9 @@ const say = (text: string): Content => ({ role: "model", parts: [{ text }] });
 function script(...replies: Content[]) {
   const seen: Content[][] = [];
   setGeminiForTests({
+    async pickRelevant(_request, titles) {
+      return titles.map((_, i) => i);
+    },
     async chat(req) {
       seen.push(structuredClone(req.contents));
       const next = replies.shift();

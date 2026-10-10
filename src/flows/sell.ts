@@ -6,6 +6,7 @@ import { gemini } from "../agent/gemini";
 import { LIMITS } from "../config";
 import { db } from "../db";
 import { onListingActivated } from "../matching";
+import { suggestPriceCents } from "../matching/price";
 import { checkProhibited } from "../safety";
 import type { Listing, User } from "../types";
 import { conditionText, dollars, itemName } from "./format";
@@ -44,7 +45,9 @@ export async function draftFromPhoto(user: User, photo: { bytes: Uint8Array; mim
   if (!described) return { ok: false, reply: "hmm can't tell what that is, can you send another angle?" };
   setItem(run, described.title);
 
-  const draft = { ...described, priceCents: priceFromCaption(caption) ?? described.priceCents };
+  const typed = priceFromCaption(caption);
+  const hint = typed == null ? await suggestPriceCents(described.category).catch(() => null) : null;
+  const draft = { ...described, priceCents: typed ?? hint ?? described.priceCents };
   const verdict = checkProhibited(draft);
   setStep(run, "safety", verdict.action === "block" ? "failed" : "done");
   if (verdict.action === "block") return { ok: false, reply: verdict.reason ?? "sorry, i can't help list that one" };
@@ -66,7 +69,7 @@ export async function updateDraft(user: User, patch: { priceCents?: number; cond
 }
 
 /** Publish the current draft (or listingId): checkProhibited → active-listing limit → status active →
- *  onListingActivated → logEvent → state idle. */
+ *  onListingActivated → state idle. */
 export async function confirmDraft(user: User, listingId?: string): Promise<{ ok: true; listing: Listing } | { ok: false; reason: string }> {
   const draft = await draftFor(user, listingId);
   if (!draft) return { ok: false, reason: "i don't have a draft waiting, send me a photo to start one" };
@@ -86,7 +89,6 @@ export async function confirmDraft(user: User, listingId?: string): Promise<{ ok
   setStep(run, "live", "done");
   await onListingActivated(listing);
   setStep(run, "wants_checked", "done");
-  await db.logEvent("listing_activated", { userId: user.id, listingId: listing.id });
   await db.updateUser(user.id, { state: { kind: "idle" } });
   return { ok: true, listing };
 }

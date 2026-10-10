@@ -4,15 +4,26 @@ import { bus, type BusEvents } from "../bus";
 import { db } from "../db";
 import { dollars, itemName } from "../flows/format";
 import { photoAttachment } from "../flows/photo";
-import { sendTo } from "../spectrum/send";
+import { isSeedUser, sendTo } from "../spectrum/send";
 
-const offered = new Set<string>(); // "buyerId:listingId" already offered this process
+const offered = new Map<string, string>(); // "buyerId:listingId" -> wantId, already offered this process
+
+/** The want a buyer was pinged about for this listing (if this process pinged them). */
+export function offeredWant(buyerId: string, listingId: string): string | undefined {
+  return offered.get(`${buyerId}:${listingId}`);
+}
+
+/** The deal for a pinged listing fell through (declined, cancelled, hold ran out): keep looking for the buyer. */
+export async function reopenOfferedWant(buyerId: string, listingId: string): Promise<void> {
+  const wantId = offeredWant(buyerId, listingId);
+  if (wantId) await db.updateWantStatus(wantId, "open");
+}
 
 async function offerListing({ wantId, listingId, buyerId }: BusEvents["match_found"]) {
   const [buyer, listing] = await Promise.all([db.getUser(buyerId), db.getListing(listingId)]);
   const key = `${buyerId}:${listingId}`;
-  if (!buyer || buyer.optedOut || listing?.status !== "active" || offered.has(key)) return;
-  offered.add(key);
+  if (!buyer || buyer.optedOut || isSeedUser(buyer) || listing?.status !== "active" || offered.has(key)) return;
+  offered.set(key, wantId);
 
   const photo = await photoAttachment(listing.photoId);
   const ref = { kind: "offer", listingId, wantId } as const; // same ref on photo and text, so a ❤️ on either works
@@ -28,6 +39,7 @@ async function holdExpired({ matchId }: BusEvents["hold_expired"]) {
     ? await Promise.all([db.getListing(match.listingId), db.getUser(match.buyerId), db.getUser(match.sellerId)])
     : [];
   if (!listing || !buyer || !seller) return;
+  await reopenOfferedWant(buyer.id, listing.id);
   await sendTo(buyer, `the hold on the ${itemName(listing)} ran out, so it's back up for sale. still want it? just say so`);
   await sendTo(seller, `the hold on your ${itemName(listing)} ran out, so it's listed again. text me if you two still plan to meet`);
 }

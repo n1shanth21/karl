@@ -40,6 +40,7 @@ const lastContent = (req: ChatReq) => req.contents.at(-1)!;
 const toolResult = (req: ChatReq) => lastContent(req).parts?.[0]?.functionResponse;
 
 setGeminiForTests({
+  pickRelevant: async (_request, titles) => titles.map((_, i) => i),
   describeItem: async (jpeg, caption) => {
     describeCalls.push({ caption, bytes: jpeg.length });
     return { title: "Desk Lamp", description: "works great", category: "desk lamp", condition: "good", priceCents: 1500, confidence: 0.9 };

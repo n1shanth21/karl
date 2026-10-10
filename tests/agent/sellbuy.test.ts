@@ -64,6 +64,7 @@ async function activeListing(seller: Awaited<ReturnType<typeof fakeUser>>, draft
 
 beforeEach(async () => {
   stubModules();
+  setGeminiForTests({ pickRelevant: async (_request, titles) => titles.map((_, i) => i) }); // everything found is relevant
   setResultPauseForTests(0);
   await resetAll();
   proposed.length = 0;

@@ -61,7 +61,6 @@ afterEach(() => {
 
 test("propose, accept, meetup, both confirm: listing sold", async () => {
   const listing = await makeListing(seller.id, "Mini fridge");
-  const want = await db.createWant({ buyerId: buyer.id, queryText: "need a fridge for my dorm", maxPriceCents: 6000 });
   expect(await proposeMatch(buyer, listing)).toContain("asked the seller");
   expect(lastTextTo(seller)).toContain("someone wants your mini fridge at $45");
   const [match] = await db.activeMatchesForUser(buyer.id);
@@ -82,7 +81,6 @@ test("propose, accept, meetup, both confirm: listing sold", async () => {
   await confirmHappened(seller, match!.id, true);
   expect((await db.getListing(listing.id))?.status).toBe("sold");
   expect((await db.getMatch(match!.id))?.status).toBe("completed");
-  expect((await db.getWant(want.id))?.status).toBe("matched");
   expect((await db.getUser(buyer.id))?.state.kind).toBe("idle");
 });
 

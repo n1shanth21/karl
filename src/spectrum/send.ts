@@ -42,14 +42,17 @@ export async function spaceFor(user: User): Promise<Space> {
 
 export const last4 = (phone: string) => `…${phone.slice(-4)}`;
 
+/** Demo sellers from the seed script: they have no real phone, so Karl can never text them. */
+export const isSeedUser = (user: User) => user.phone.startsWith("seed:") || user.spaceId === "seed";
+
 /**
  * Send text (or any Spectrum content: markdown(), attachment(), poll...) to a user.
  * - logText: what to save in history/logs when content isn't a plain string
  * - ref: tag the sent message so tapbacks/replies on it can be routed (see refs.ts)
- * Never throws for opted-out users; it just skips them.
+ * Never throws for opted-out or seed (demo) users; it just skips them.
  */
 export async function sendTo(user: User, content: ContentInput, opts: { logText?: string; ref?: Ref } = {}): Promise<Message | undefined> {
-  if (user.optedOut) return undefined;
+  if (user.optedOut || isSeedUser(user)) return undefined;
   const space = await spaceFor(user);
   const sent = await space.send(content);
   if (opts.ref) {

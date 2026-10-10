@@ -167,7 +167,7 @@ async function answerRef(user: User, ref: Ref, yes: boolean): Promise<string | n
       return yes ? pickResult(user, { listingId: ref.listingId }) : null;
     case "offer": {
       const listing = yes ? await db.getListing(ref.listingId) : null;
-      return listing ? proposeMatch(user, listing) : null;
+      return listing ? proposeMatch(user, listing) : null; // proposeMatch marks the pinged want matched
     }
     case "match_request":
       return respondToMatch(user, ref.matchId, yes);

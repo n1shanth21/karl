@@ -1,6 +1,7 @@
 // Buy flow. Owner: Nishanth.
 
 import { markdown } from "spectrum-ts";
+import { gemini } from "../agent/gemini";
 import { LIMITS } from "../config";
 import { db } from "../db";
 import { onWantCreated, searchListings } from "../matching";
@@ -15,12 +16,31 @@ let resultPauseMs = 700;
 /** Tests shorten (or zero) the pause between results. */
 export const setResultPauseForTests = (ms: number) => void (resultPauseMs = ms);
 
+const STOPWORDS = new Set(["for", "the", "and", "need", "want", "under", "any", "some", "something", "looking", "with", "get", "buy", "has", "have"]);
+const words = (text: string) => text.toLowerCase().match(/[a-z]{3,}/g)?.filter((w) => !STOPWORDS.has(w)) ?? [];
+
+/** Search results are the closest things in meaning, not always the item asked for (desk fan for "desk lamp").
+ *  Gemini keeps the ones that really are the item; if it fails, keep titles sharing meaningful words with the query
+ *  (two when the query has two, so a desk fan doesn't pass for a "desk lamp"). */
+async function onlyRelevant(query: string, listings: Listing[]): Promise<Listing[]> {
+  try {
+    const keep = new Set(await gemini.pickRelevant(query, listings.map((l) => l.title)));
+    return listings.filter((_, i) => keep.has(i));
+  } catch (err) {
+    console.error("[buy] relevance check failed, using word overlap", err);
+    const wanted = new Set(words(query));
+    const needed = Math.min(2, wanted.size);
+    return listings.filter((l) => words(l.title).filter((w) => wanted.has(w)).length >= needed);
+  }
+}
+
 /** Search and SEND up to LIMITS.maxSearchResults results to the user, one at a time (photo, then
  *  "**1. Title** · $45 · good"), both tagged ref result so ❤️ on either works. Pauses between results.
  *  Sets state choosing_result. Returns what was shown ([] = nothing found; caller offers save_want). */
 export async function searchAndShow(user: User, query: string, maxPriceCents: number | null): Promise<Listing[]> {
   const results = await searchListings(query, { maxPriceCents, excludeSellerId: user.id });
-  const listings = results.map((r) => r.listing).slice(0, LIMITS.maxSearchResults);
+  const found = results.map((r) => r.listing).slice(0, LIMITS.maxSearchResults);
+  const listings = found.length ? await onlyRelevant(query, found) : [];
   if (listings.length === 0) return [];
 
   for (const [i, listing] of listings.entries()) {
@@ -53,7 +73,6 @@ export async function pickResult(user: User, pick: { index?: number; listingId?:
 export async function saveWant(user: User, query: string, maxPriceCents: number | null): Promise<Want> {
   const want = await db.createWant({ buyerId: user.id, queryText: query, maxPriceCents });
   await onWantCreated(want);
-  await db.logEvent("want_created", { userId: user.id, payload: { wantId: want.id } });
   return want;
 }
 

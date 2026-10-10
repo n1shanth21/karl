@@ -1,8 +1,12 @@
 // Phase 0 smoke test: the shared contracts work together in memory mode.
-import { expect, test } from "bun:test";
+import { expect, test as baseTest } from "bun:test";
+import { config } from "../../src/config";
 import { bus } from "../../src/bus";
 import { db } from "../../src/db";
 import { onListingActivated, onWantCreated, searchListings } from "../../src/matching";
+
+// These touch the shared db: never run them against the real postgres database.
+const test = config.dbMode === "postgres" ? baseTest.skip : baseTest;
 
 test("want -> listing fires match_found, search finds it", async () => {
   await db.reset();

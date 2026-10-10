@@ -2,12 +2,14 @@
 
 import { LIMITS, MEETUP_SPOTS } from "../config";
 import { db } from "../db";
-import { sendTo } from "../spectrum/send";
+import { offeredWant, reopenOfferedWant } from "../agent/notifications";
+import { isSeedUser, sendTo } from "../spectrum/send";
 import type { Listing, Match, User } from "../types";
 import { dollars, itemName } from "./format";
 import { describeTime, meetupProposal, meetupTimeProblem } from "./meetup";
 
 const NO_MATCH = "i can't find that one. text 'my stuff' to see what's active";
+const DEMO_LISTING = "that one's a demo listing, so the seller isn't reachable. i'll keep looking and text you if a real one shows up";
 const PAY_REMINDER = "only pay once you have it in hand.";
 const HANDOFF = ["accepted", "meetup_set"];
 const OPEN = ["proposed", ...HANDOFF];
@@ -38,7 +40,11 @@ export async function proposeMatch(buyer: User, listing: Listing): Promise<strin
   const seller = await db.getUser(listing.sellerId);
   if (!seller) throw new Error(`seller ${listing.sellerId} not found`);
 
+  if (isSeedUser(seller) || seller.optedOut) return DEMO_LISTING; // no match, no hold; the buyer's want stays open
+
   const match = await db.createMatch({ listingId: listing.id, buyerId: buyer.id, sellerId: seller.id });
+  const wantId = offeredWant(buyer.id, listing.id); // buyer took a ping: that want is done
+  if (wantId) await db.updateWantStatus(wantId, "matched");
   if (buyer.state.kind === "choosing_result") await db.updateUser(buyer.id, { state: { kind: "idle" } });
   await sendTo(
     seller,
@@ -56,6 +62,7 @@ export async function respondToMatch(seller: User, matchId: string, accept: bool
 
   if (!accept || listing.status !== "active") {
     await db.updateMatch(match.id, { status: "cancelled" });
+    await reopenOfferedWant(buyer.id, listing.id);
     await sendTo(buyer, `the ${itemName(listing)} isn't available after all, sorry! text me if you want me to look for another one`);
     return accept ? `sorry, the ${itemName(listing)} isn't available anymore` : "no worries, it stays listed";
   }
@@ -63,7 +70,6 @@ export async function respondToMatch(seller: User, matchId: string, accept: bool
   const holdExpiresAt = new Date(Date.now() + LIMITS.holdMinutes * 60_000);
   await db.updateMatch(match.id, { status: "accepted", holdExpiresAt });
   await db.updateListing(listing.id, { status: "held" });
-  await db.logEvent("match_accepted", { userId: seller.id, listingId: listing.id });
 
   const options = meetupProposal();
   const item = itemName(listing);
@@ -93,6 +99,7 @@ async function endMatch(ctx: Ctx, user: User, what: string): Promise<string> {
   const { match, listing, buyer, seller } = ctx;
   await db.updateMatch(match.id, { status: "cancelled" });
   if (listing.status === "held") await db.updateListing(listing.id, { status: "active" });
+  await reopenOfferedWant(buyer.id, listing.id);
 
   const isBuyer = user.id === buyer.id;
   const followUp = isBuyer ? "it's back up for sale." : "text me if you want me to look for another one.";
@@ -113,22 +120,11 @@ export async function confirmHappened(user: User, matchId: string, happened: boo
 
   await db.updateMatch(matchId, { status: "completed" });
   await db.updateListing(listing.id, { status: "sold" });
-  await closeMatchingWants(buyer.id, listing);
-  await db.logEvent("sale_completed", { userId: seller.id, listingId: listing.id, payload: { priceCents: listing.priceCents } });
 
   const buyerThanks = `enjoy the ${itemName(listing)}! thanks for using karl`;
   const sellerThanks = `sold! thanks for selling your ${itemName(listing)} through me`;
   await sendTo(isBuyer ? seller : buyer, isBuyer ? sellerThanks : buyerThanks);
   return isBuyer ? buyerThanks : sellerThanks;
-}
-
-/** Mark the buyer's open wants that share a word with the sold item as matched. */
-async function closeMatchingWants(buyerId: string, listing: Listing): Promise<void> {
-  const words = (text: string): string[] => text.toLowerCase().match(/[a-z]{4,}/g) ?? [];
-  const itemWords = words(`${itemName(listing)} ${listing.category}`);
-  for (const want of await db.openWantsByBuyer(buyerId)) {
-    if (words(want.queryText).some((w) => itemWords.includes(w))) await db.updateWantStatus(want.id, "matched");
-  }
 }
 
 /** Either side backs out. */
