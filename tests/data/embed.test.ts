@@ -66,7 +66,8 @@ const cosine = (a: number[], b: number[]) =>
   a.reduce((s, x, i) => s + x * b[i], 0) / Math.hypot(...a) / Math.hypot(...b);
 
 describe("embed (live Gemini)", () => {
-  test.skipIf(!process.env.GEMINI_API_KEY)("related listing scores higher than unrelated one", async () => {
+  // Live API call: opt-in only (RUN_LIVE_GEMINI=1 bun test ...) so merges never depend on Gemini quota.
+  test.skipIf(!process.env.GEMINI_API_KEY || process.env.RUN_LIVE_GEMINI !== "1")("related listing scores higher than unrelated one", async () => {
     const [fridge, oil] = await embedDocuments([
       { title: "Mini fridge", category: "appliance", description: "compact dorm fridge, keeps drinks cold, good condition" },
       { title: "Lamp oil", category: "household", description: "bottle of lamp oil for oil lanterns" },
