@@ -14,9 +14,9 @@ You own everything the judges see that isn't a text message: the live dashboard 
 
 ## Phase W2: brand + seed content · 8:30–11:30 PM
 - [x] Karl's avatar (square PNG) + display name → give to Aarush for the Photon profile
-- [ ] `seed/seed-data.json`: ~25 realistic UNC listings (mini fridges, real course textbooks like CHEM 101 / MATH 231, desk lamps, a futon, a bike, a rug, a monitor, Carolina gear). Fields match `ListingDraft` + `sellerFirstName` + `photo` (file in `seed/photos/`, JPEG < 300 KB each). No tickets.
-- [ ] Also ~8 seed **wants** ("need a bike lock", "monitor under $80") so proactive matches happen in the demo
-**Finish line:** Himagna's seed script loads it.
+- [x] `seed/seed-data.json`: ~25 realistic UNC listings (mini fridges, real course textbooks like CHEM 101 / MATH 231, desk lamps, a futon, a bike, a rug, a monitor, Carolina gear). Fields match `ListingDraft` + `sellerFirstName` + `photo` (file in `seed/photos/`, JPEG < 300 KB each). No tickets.
+- [x] Also ~8 seed **wants** ("need a bike lock", "monitor under $80") so proactive matches happen in the demo
+**Finish line:** Himagna's seed script loads it. ✅ (data branch 347e557)
 
 ## Phase W3: real data + pitch · 11:30 PM–3:00 AM
 - [ ] Point `NEXT_PUBLIC_API_URL` at the Railway URL; counters animate on change; a "listings per hour" sparkline from `listingsPerHour`
