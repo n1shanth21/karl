@@ -45,12 +45,13 @@ You keep Karl safe and running: the scam and prohibited-item checks, the every-m
 - [ ] **Nobody runs iMessage mode with the production Photon keys from a laptop** (Nishanth uses a separate project for local tests)
 - [ ] Railway `DB_MODE=memory` until `origin/data` (Himagna's postgres code) is merged to `main`, then switch to `postgres`. Tiger tables already exist (checked 2026-10-10)
 - [x] `railway.json`: start command, `/health` healthcheck, restart on failure, no deploy overlap (avoids double replies)
-- [ ] If the access test showed unregistered phones can't text in: `POST /signup` (phone → Photon Dashboard API adds them to Users) and tell Aayush to link it
+- [x] `/signup` page + `POST /api/signup`: Spectrum API create shared user → shows that person's own Karl number (`assignedPhoneNumber`). 5/IP/hour; optional `SIGNUP_CODE` env. Dashboard QR should point at `https://karl-production.up.railway.app/signup`
 - [ ] Post the number in the HackNC Discord ("sell your extra swag, snacks, chargers to other hackers")
 
 ## Phase BX · 1:00–8:00 AM
 - [ ] Watch Railway logs for errors; report bugs to the owner with the exact log line
-- [ ] Harden `/api/stats` (cache 3 s), make sure no phone or last name ever appears in any response
+- [x] `GET /api/activity` (first names only, scrubbed titles) for Aayush's live pipeline view
+- [x] Harden `/api/stats` (cache 3 s), make sure no phone or last name ever appears in any response
 
 ## Starter prompt (paste after `/clear`)
 ```

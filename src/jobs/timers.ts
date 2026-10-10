@@ -24,6 +24,7 @@ export async function expireHolds(now: Date): Promise<void> {
       await db.updateMatch(match.id, { status: "expired" });
       const listing = await db.getListing(match.listingId);
       // Never bring back a listing that sold or was removed in the meantime.
+      // Do NOT call onListingActivated here: buyers were already pinged when it first went live.
       if (listing?.status === "held") {
         await db.updateListing(listing.id, { status: "active" });
       }

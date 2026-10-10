@@ -43,6 +43,17 @@ test("expired hold: match expired, listing active, one hold_expired event", asyn
   expect(events.hold).toEqual([match.id]);
 });
 
+test("expired hold does NOT re-ping buyers (no onListingActivated, no match_found)", async () => {
+  const buyer = await db.createUser({ phone: "+15550007777", spaceId: "b" });
+  await db.createWant({ buyerId: buyer.id, queryText: "mini fridge", maxPriceCents: 6000 });
+  const pings: string[] = [];
+  bus.on("match_found", (e) => void pings.push(e.listingId));
+  const match = await makeMatch("held", { status: "accepted", holdExpiresAt: ago(1) });
+  await tick(NOW);
+  expect((await db.getListing(match.listingId))?.status).toBe("active");
+  expect(pings).toEqual([]);
+});
+
 test("hold that hasn't run out is left alone", async () => {
   const match = await makeMatch("held", { status: "accepted", holdExpiresAt: later(30) });
   await tick(NOW);
