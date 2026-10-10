@@ -33,7 +33,7 @@ You own everything stored and searched: the Tiger Data database, embeddings and 
 **Finish line:** `/api/stats` on postgres returns real numbers + hourly buckets.
 
 ## Phase DX · 3:00–8:00 AM
-- [ ] Optional: `suggestPriceCents(category, title)` from sold comps (median), else null
+- [x] Optional: `suggestPriceCents(category, title)` from sold comps (median), else null *(`src/matching/price.ts`: needs ≥3 sold in the category, rounded to $1)*
 - [ ] 6 AM: reset + seed the production DB for the demo (keep real HackNC data if the team wants the stats)
 
 ## Starter prompt (paste after `/clear`)
