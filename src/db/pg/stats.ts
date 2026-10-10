@@ -3,7 +3,7 @@
 
 import { config } from "../../config";
 import type { ListingStatus, Stats } from "../../types";
-import type { Db } from "../types";
+import { DB_OWNED_EVENTS, type Db } from "../types";
 import { insertEvent, type Sql } from "./client";
 
 type StatsQueries = Pick<Db, "logEvent" | "getStats" | "reset">;
@@ -63,6 +63,7 @@ export function statsQueries(sql: Sql): StatsQueries {
 
   return {
     async logEvent(type, data) {
+      if (DB_OWNED_EVENTS.has(type)) return; // already logged by the write itself (see DB_OWNED_EVENTS)
       await insertEvent(sql, type, data); // never throws
     },
 

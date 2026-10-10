@@ -24,6 +24,18 @@ export type MatchPatch = Partial<
 >;
 export type UserPatch = Partial<{ firstName: string | null; optedOut: boolean; state: ConversationState; spaceId: string }>;
 
+/**
+ * Analytics events the data layer records ITSELF when the matching write happens. db.logEvent()
+ * ignores these types, so a flow that also logs them can't double-count the dashboard.
+ */
+export const DB_OWNED_EVENTS: ReadonlySet<string> = new Set([
+  "user_created",
+  "want_created",
+  "listing_activated",
+  "match_accepted",
+  "sale_completed",
+]);
+
 export interface Db {
   // users
   getUser(id: string): Promise<User | null>;
