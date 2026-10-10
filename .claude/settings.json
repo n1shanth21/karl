@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && git config core.hooksPath .githooks; (command -v bun >/dev/null && bun tools/guard.ts session) || \"$HOME/.bun/bin/bun\" tools/guard.ts session",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && ((command -v bun >/dev/null && bun tools/guard.ts claude) || \"$HOME/.bun/bin/bun\" tools/guard.ts claude)",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

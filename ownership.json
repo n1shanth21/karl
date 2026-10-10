@@ -1,0 +1,47 @@
+{
+  "_readme": "Who may change which files. Enforced by tools/guard.ts (git pre-commit hook + Claude Code PreToolUse hook). Branch name decides the role. Owner: Nishanth.",
+  "roles": {
+    "agent": {
+      "person": "Nishanth",
+      "github": "n1shanth21",
+      "paths": [
+        "src/index.ts",
+        "src/types.ts",
+        "src/config.ts",
+        "src/bus.ts",
+        "src/spectrum/**",
+        "src/agent/**",
+        "src/flows/**",
+        "tests/agent/**",
+        "team/nishanth.md",
+        "README.md",
+        "CLAUDE.md",
+        "PLAN.md",
+        "ownership.json",
+        "package.json",
+        "bun.lock",
+        "tsconfig.json",
+        ".env.example",
+        ".gitignore",
+        ".githooks/**",
+        ".claude/**",
+        "tools/**"
+      ]
+    },
+    "data": {
+      "person": "Himagna",
+      "github": "himagna16",
+      "paths": ["src/db/**", "src/matching/**", "db/**", "scripts/**", "tests/data/**", "team/himagna.md"]
+    },
+    "backend": {
+      "person": "Aarush",
+      "github": "kathraniaarush-sudo",
+      "paths": ["src/safety/**", "src/jobs/**", "src/http/**", "tests/backend/**", "railway.json", "team/aarush.md"]
+    },
+    "web": {
+      "person": "Aayush",
+      "github": "AayushKarwande",
+      "paths": ["web/**", "pitch/**", "seed/**", "team/aayush.md"]
+    }
+  }
+}

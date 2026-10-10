@@ -1,0 +1,17 @@
+# Secrets (never commit these)
+.env
+.env.*
+!.env.example
+
+# Dependencies and build output
+node_modules/
+dist/
+.next/
+out/
+.vercel/
+coverage/
+*.log
+
+# Mac / editor
+.DS_Store
+.claude/settings.local.json

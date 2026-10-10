@@ -1,0 +1,21 @@
+{
+  "listedTotal": 27,
+  "soldTotal": 9,
+  "activeListings": 15,
+  "openWants": 6,
+  "usersTotal": 41,
+  "tradedCents": 38500,
+  "recent": [
+    { "id": "1", "title": "Mini fridge (Galanz 3.1 cu ft)", "priceCents": 4500, "sellerFirstName": "Jordan", "photoUrl": null, "status": "sold", "createdAt": "2026-10-10T22:12:00.000Z" },
+    { "id": "2", "title": "CHEM 101 textbook, 9th ed", "priceCents": 2500, "sellerFirstName": "Priya", "photoUrl": null, "status": "active", "createdAt": "2026-10-10T22:05:00.000Z" },
+    { "id": "3", "title": "IKEA desk lamp", "priceCents": 1200, "sellerFirstName": "Sam", "photoUrl": null, "status": "held", "createdAt": "2026-10-10T21:58:00.000Z" },
+    { "id": "4", "title": "27\" Dell monitor", "priceCents": 7000, "sellerFirstName": "Alex", "photoUrl": null, "status": "active", "createdAt": "2026-10-10T21:40:00.000Z" }
+  ],
+  "listingsPerHour": [
+    { "hour": "2026-10-10T19:00:00.000Z", "count": 3 },
+    { "hour": "2026-10-10T20:00:00.000Z", "count": 7 },
+    { "hour": "2026-10-10T21:00:00.000Z", "count": 11 },
+    { "hour": "2026-10-10T22:00:00.000Z", "count": 6 }
+  ],
+  "updatedAt": "2026-10-10T22:15:00.000Z"
+}
