@@ -28,7 +28,7 @@ async function karlAskedQuestion(user: User): Promise<boolean> {
 async function relay(sender: User, match: Match, text: string): Promise<"relayed" | "blocked"> {
   const verdict = await scanRelayMessage(text);
   if (verdict.action === "block") {
-    await sendTo(sender, `didn't pass that along: ${verdict.reason ?? "that looked unsafe"}`);
+    await sendTo(sender, verdict.reason ?? "i didn't pass that along, it looked unsafe");
     return "blocked";
   }
   const isBuyer = sender.id === match.buyerId;
@@ -41,7 +41,7 @@ async function relay(sender: User, match: Match, text: string): Promise<"relayed
   const who = `${sender.firstName ?? (isBuyer ? "buyer" : "seller")} · ${itemName(listing)}`;
   const rendered = `**${escapeMarkdown(who)}**\n${escapeMarkdown(text)}`;
   await sendTo(recipient, markdown(rendered), { ref: { kind: "relay", matchId: match.id }, logText: `**${who}**\n${text}` });
-  if (verdict.action === "warn") await sendTo(recipient, `heads up: ${verdict.reason ?? "be careful with that last message"}`);
+  if (verdict.action === "warn") await sendTo(recipient, verdict.reason ?? "heads up: be careful with that last message");
   return "relayed";
 }
 

@@ -129,13 +129,13 @@ test("blocked relay is not forwarded; warned relay adds a heads-up", async () =>
   const before = sentTo(seller).length;
   scan.mockResolvedValueOnce({ action: "block", reason: "no phone numbers please" });
   expect(await routeMessage(buyer, "text me at 919-555-0100")).toBe("blocked");
-  expect(lastTextTo(buyer)).toBe("didn't pass that along: no phone numbers please");
+  expect(lastTextTo(buyer)).toBe("no phone numbers please");
   expect(sentTo(seller)).toHaveLength(before);
 
   scan.mockResolvedValueOnce({ action: "warn", reason: "don't pay before you see it" });
   expect(await routeMessage(buyer, "can you venmo me first")).toBe("relayed");
   expect(sentTo(seller)).toHaveLength(before + 2);
-  expect(lastTextTo(seller)).toBe("heads up: don't pay before you see it");
+  expect(lastTextTo(seller)).toBe("don't pay before you see it");
 });
 
 test("two matches ask which; a reply target picks one", async () => {

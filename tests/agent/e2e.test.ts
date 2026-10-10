@@ -217,9 +217,10 @@ test("a desk lamp goes from photo to sold, across two phones, through handleInbo
   // ---------------------------------------------------------------- 9. Jordan texts "venmo me first pls"
   step = "9 relay venmo";
   await jordan(text("venmo me first pls"));
-  // src/safety is allow-all stubs on this branch, so it IS relayed. Real blocking/warning of pay-first
-  // asks comes from Aarush's safety at merge (then this expectation should become a "didn't pass that along" to Jordan).
-  expect(await lastText(mayaUser)).toBe("**Jordan · desk lamp**\nvenmo me first pls");
+  // Real safety (Aarush) WARNS on pay-first: the message is still relayed, then Maya gets a heads-up.
+  const mayaTexts = (await texts(mayaUser)).slice(-2);
+  expect(mayaTexts[0]).toBe("**Jordan · desk lamp**\nvenmo me first pls");
+  expect(mayaTexts[1]).toMatch(/^heads up: only pay once/);
   expect(chatCalls).toHaveLength(4);
 
   // ---------------------------------------------------------------- 10. Timer fires the check-in; both say yep: sold, both thanked
