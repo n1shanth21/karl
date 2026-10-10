@@ -1,4 +1,4 @@
-// Small HTTP server: health check, dashboard stats, listing photos. Owner: Aarush (backend branch).
+// Small HTTP server: health check, dashboard stats, activity, sign-up, listing photos. Owner: Aarush (backend branch).
 // Read-only. Never returns phone numbers or last names.
 
 import { Hono } from "hono";
@@ -7,6 +7,7 @@ import { recentRuns } from "../agent/activity";
 import { config } from "../config";
 import { db } from "../db";
 import { firstNameOnly, getPublicStats, scrubTitle } from "./publicStats";
+import { signupRoutes } from "./signup";
 
 export const http = new Hono();
 
@@ -26,6 +27,9 @@ http.get("/api/activity", (c) =>
     })),
   ),
 );
+
+// GET /signup page + POST /api/signup (adds the phone to Photon's Users list).
+http.route("/", signupRoutes());
 
 http.get("/photos/:id", async (c) => {
   const photo = await db.getPhoto(c.req.param("id"));
