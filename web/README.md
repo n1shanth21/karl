@@ -1,6 +1,6 @@
 # Karl dashboard (web/)
 
-Live counters, recent listings and a QR code to text Karl. Separate Next.js app.
+Live counters, recent listings and a QR code to sign up for Karl. Separate Next.js app.
 
 ## Run
 ```
@@ -13,7 +13,7 @@ npm run dev                  # http://localhost:3001
 
 ## Env vars
 - `NEXT_PUBLIC_API_URL`: Karl server base URL. The page polls `<url>/api/stats` every 5 s. If unset, or until the first good response, it shows `mock-stats.json` with a "demo data" badge; after that a failed poll keeps the last live data. Relative `photoUrl`s like `/photos/abc` are loaded from this host.
-- `NEXT_PUBLIC_KARL_NUMBER`: phone number shown with the QR code. Unset shows "(coming soon)".
+- The "Text Karl" QR opens `${NEXT_PUBLIC_API_URL}/signup` (falls back to the Railway URL). There is no single Karl number: Photon gives each person their own Karl line and blocks phones that are not signed up, so the sign-up page adds them and shows their number.
 
 The server must allow CORS from the dashboard origin.
 
