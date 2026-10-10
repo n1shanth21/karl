@@ -16,7 +16,7 @@ export function createMemoryDb(): Db {
   let photos = new Map<string, { bytes: Uint8Array; mimeType: string }>();
   let messages: StoredMessage[] = [];
   let seenMessageIds = new Set<string>();
-  let events: { ts: Date; type: string; listingId?: string }[] = [];
+  let events: { ts: Date; type: string; userId?: string; listingId?: string }[] = [];
 
   const must = <T>(value: T | undefined, what: string): T => {
     if (!value) throw new Error(`${what} not found`);
@@ -151,7 +151,7 @@ export function createMemoryDb(): Db {
     },
 
     async logEvent(type, data) {
-      events.push({ ts: new Date(), type, listingId: data?.listingId });
+      events.push({ ts: new Date(), type, userId: data?.userId, listingId: data?.listingId });
     },
     async getStats(): Promise<Stats> {
       const all = [...listings.values()].filter((l) => l.status !== "draft");
@@ -179,6 +179,19 @@ export function createMemoryDb(): Db {
         listingsPerHour: [],
         updatedAt: new Date().toISOString(),
       };
+    },
+
+    // Memory mode matches by keyword in src/matching instead of by vector.
+    async setListingEmbedding() {},
+    async setWantEmbedding() {},
+    async searchListingsByVector() {
+      return [];
+    },
+    async openWantsByVector() {
+      return [];
+    },
+    async countEventsSince(type, { userId, since }) {
+      return events.filter((e) => e.type === type && e.userId === userId && e.ts >= since).length;
     },
 
     async reset() {

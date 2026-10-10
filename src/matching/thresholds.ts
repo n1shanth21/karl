@@ -1,0 +1,8 @@
+// Similarity cutoffs for semantic matching (cosine similarity, 0..1). Owner: Himagna (data branch).
+// Tuned with scripts/tune-matching.ts on 22 UNC listings x 18 buyer phrasings (gemini-embedding-2, 768 dims):
+//   correct matches scored 0.662-0.799; junk ("concert tickets" -> textbook) <= 0.596; "lamp oil" vs a
+//   desk-lamp request <= 0.653; demo pairs: "drinks cold" -> mini fridge 0.691, "desk lamp under $20" -> 0.749.
+// Search shows results the buyer asked for, so it is looser. A proactive match texts someone unprompted,
+// so it is stricter. These replace LIMITS.searchThreshold / LIMITS.matchThreshold (config.ts) in postgres mode.
+export const SEARCH_MIN_SCORE = 0.62;
+export const MATCH_MIN_SCORE = 0.67;

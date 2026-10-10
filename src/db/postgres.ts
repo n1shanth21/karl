@@ -9,6 +9,7 @@ import { messagesQueries } from "./pg/messages";
 import { photosQueries } from "./pg/photos";
 import { statsQueries } from "./pg/stats";
 import { usersQueries } from "./pg/users";
+import { vectorsQueries } from "./pg/vectors";
 import { wantsQueries } from "./pg/wants";
 import type { Db } from "./types";
 
@@ -28,6 +29,7 @@ export function createPostgresDb(opts: { url?: string; schema?: string } = {}): 
     ...wantsQueries(sql),
     ...matchesQueries(sql),
     ...statsQueries(sql),
+    ...vectorsQueries(sql),
     end: () => sql.end({ timeout: 1 }),
   };
 }
