@@ -5,14 +5,14 @@
 // DB_MODE=memory   -> simple keyword overlap (no API key needed, used by tests and local dev).
 // If Gemini fails in postgres mode, we fall back to keywords so Karl still answers.
 
-import { bus } from "../bus";
 import { config, LIMITS } from "../config";
 import { db } from "../db";
 import type { Listing, SearchResult, Want } from "../types";
 import { keywordScore } from "./keyword";
-import { activateSemantic, searchSemantic, wantSemantic } from "./semantic";
+import { embedListing, matchListingByVector, pingBuyers, searchSemantic, wantSemantic } from "./semantic";
 
 const semanticOn = config.dbMode === "postgres";
+const RETRY_MS = 60_000;
 
 // Keyword fallback keeps active listings + open wants seen by this process in memory.
 const activeListings = new Map<string, Listing>();
@@ -32,26 +32,41 @@ export async function searchListings(query: string, opts: { maxPriceCents?: numb
   return keywordSearch(query, opts);
 }
 
-/** Call right after a listing becomes "active". Finds saved wants it satisfies and emits match_found. */
+/**
+ * Call when a listing goes live for the FIRST time (draft -> active), not when a hold expires.
+ * Finds saved wants it satisfies and emits match_found (each buyer at most once per listing).
+ */
 export async function onListingActivated(listing: Listing): Promise<void> {
   activeListings.set(listing.id, listing);
   if (semanticOn) {
+    let vec: number[] | null = null;
     try {
-      return await activateSemantic(listing);
+      vec = await embedListing(listing);
     } catch (err) {
-      console.error("[matching] semantic matching failed, falling back to keywords", err);
+      // Gemini down or over quota: match by keywords now, and embed again in a minute so search can find it.
+      console.error("[matching] embedding listing failed; keyword match now, retrying in 60s", err);
+      retryLater(async () => matchListingByVector(listing, await embedListing(listing)));
     }
+    if (vec) return matchListingByVector(listing, vec);
   }
-  await keywordMatch(listing);
+  await pingBuyers(listing, await keywordCandidates(listing));
 }
 
 /** Call right after a want is saved, so future listings can match it. */
 export async function onWantCreated(want: Want): Promise<void> {
   openWants.set(want.id, want);
   if (semanticOn) {
-    // If this fails the want has no embedding yet; scripts/backfill can fix it later.
-    await wantSemantic(want).catch((err) => console.error("[matching] embedding want failed", err));
+    await wantSemantic(want).catch((err) => {
+      console.error("[matching] embedding want failed, retrying in 60s", err);
+      retryLater(() => wantSemantic(want));
+    });
   }
+}
+
+/** One delayed retry. unref() so a pending retry never keeps tests or a shutdown from exiting. */
+function retryLater(fn: () => Promise<void>): void {
+  const timer = setTimeout(() => fn().catch((err) => console.error("[matching] retry failed", err)), RETRY_MS);
+  timer.unref?.();
 }
 
 async function keywordSearch(query: string, opts: { maxPriceCents?: number | null; excludeSellerId?: string }): Promise<SearchResult[]> {
@@ -67,14 +82,14 @@ async function keywordSearch(query: string, opts: { maxPriceCents?: number | nul
   return results.sort((a, b) => b.score - a.score).slice(0, LIMITS.maxSearchResults);
 }
 
-async function keywordMatch(listing: Listing): Promise<void> {
+async function keywordCandidates(listing: Listing): Promise<{ want: Want; score: number }[]> {
+  const found: { want: Want; score: number }[] = [];
   for (const want of openWants.values()) {
     const fresh = await db.getWant(want.id);
     if (!fresh || fresh.status !== "open" || fresh.buyerId === listing.sellerId) continue;
     if (fresh.maxPriceCents != null && listing.priceCents > fresh.maxPriceCents) continue;
     const score = keywordScore(fresh.queryText, `${listing.title} ${listing.category} ${listing.description}`);
-    if (score >= KEYWORD_THRESHOLD) {
-      bus.emit("match_found", { wantId: fresh.id, listingId: listing.id, buyerId: fresh.buyerId, score });
-    }
+    if (score >= KEYWORD_THRESHOLD) found.push({ want: fresh, score });
   }
+  return found.sort((a, b) => b.score - a.score);
 }

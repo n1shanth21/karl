@@ -62,10 +62,13 @@ export function vectorsQueries(sql: Sql): VectorQueries {
       return rows.map(({ score, ...want }) => ({ want, score: clamp01(Number(score)) }));
     },
 
-    async countEventsSince(type, { userId, since }) {
+    async countEventsSince(type, { userId, since, listingId }) {
       if (!isUuid(userId)) return 0;
+      if (listingId !== undefined && !isUuid(listingId)) return 0;
       const [row] = await sql<{ n: number }[]>`
-        select count(*)::int as n from events where type = ${type} and user_id = ${userId} and ts >= ${since}
+        select count(*)::int as n from events
+        where type = ${type} and user_id = ${userId} and ts >= ${since}
+          and (${listingId ?? null}::uuid is null or listing_id = ${listingId ?? null}::uuid)
       `;
       return row?.n ?? 0;
     },
