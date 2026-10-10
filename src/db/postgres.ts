@@ -3,7 +3,13 @@
 
 import { config } from "../config";
 import { makeSql } from "./pg/client";
+import { listingsQueries } from "./pg/listings";
+import { matchesQueries } from "./pg/matches";
+import { messagesQueries } from "./pg/messages";
+import { photosQueries } from "./pg/photos";
+import { statsQueries } from "./pg/stats";
 import { usersQueries } from "./pg/users";
+import { wantsQueries } from "./pg/wants";
 import type { Db } from "./types";
 
 export type PostgresDb = Db & { end(): Promise<void> };
@@ -14,36 +20,14 @@ export function createPostgresDb(opts: { url?: string; schema?: string } = {}): 
   if (!url) throw new Error("DB_MODE=postgres needs DATABASE_URL in .env");
   const sql = makeSql({ url, schema: opts.schema });
 
-  const notYet = (method: string) => async () => {
-    throw new Error(`db.${method} is not implemented for postgres yet (Himagna, Phase D1). Use DB_MODE=memory.`);
-  };
-
   return {
     ...usersQueries(sql),
-    // TODO(D1 wave A): replace these with the real query modules.
-    saveInbound: notYet("saveInbound"),
-    saveOutbound: notYet("saveOutbound"),
-    recentMessages: notYet("recentMessages"),
-    savePhoto: notYet("savePhoto"),
-    getPhoto: notYet("getPhoto"),
-    createListing: notYet("createListing"),
-    getListing: notYet("getListing"),
-    updateListing: notYet("updateListing"),
-    listingsBySeller: notYet("listingsBySeller"),
-    createWant: notYet("createWant"),
-    getWant: notYet("getWant"),
-    updateWantStatus: notYet("updateWantStatus"),
-    openWantsByBuyer: notYet("openWantsByBuyer"),
-    openWantsExpiredBefore: notYet("openWantsExpiredBefore"),
-    createMatch: notYet("createMatch"),
-    getMatch: notYet("getMatch"),
-    updateMatch: notYet("updateMatch"),
-    activeMatchesForUser: notYet("activeMatchesForUser"),
-    matchesWithExpiredHold: notYet("matchesWithExpiredHold"),
-    matchesDueForCheckin: notYet("matchesDueForCheckin"),
-    logEvent: notYet("logEvent"),
-    getStats: notYet("getStats"),
-    reset: notYet("reset"),
+    ...messagesQueries(sql),
+    ...photosQueries(sql),
+    ...listingsQueries(sql),
+    ...wantsQueries(sql),
+    ...matchesQueries(sql),
+    ...statsQueries(sql),
     end: () => sql.end({ timeout: 1 }),
   };
 }
