@@ -1,0 +1,286 @@
+{
+  "listings": [
+    {
+      "title": "Haier mini fridge, 1.7 cu ft",
+      "description": "Small white dorm fridge, runs quiet and keeps stuff cold. Moving out so need it gone.",
+      "category": "mini fridge",
+      "condition": "good",
+      "priceCents": 5500,
+      "confidence": 0.93,
+      "sellerFirstName": "Priya",
+      "photo": "photos/mini-fridge.jpg"
+    },
+    {
+      "title": "CHEM 101 textbook: Chemistry, A Molecular Approach (Tro)",
+      "description": "Used for CHEM 101, some highlighting in the first few chapters. Spine is still solid.",
+      "category": "textbook",
+      "condition": "good",
+      "priceCents": 7000,
+      "confidence": 0.88,
+      "sellerFirstName": "Marcus",
+      "photo": "photos/textbook-chem101.jpg"
+    },
+    {
+      "title": "MATH 231 textbook: Calculus Early Transcendentals (Stewart)",
+      "description": "Stewart calc book for MATH 231, no torn pages. Doesn't include the online code.",
+      "category": "textbook",
+      "condition": "good",
+      "priceCents": 6500,
+      "confidence": 0.9,
+      "sellerFirstName": "Diego",
+      "photo": "photos/textbook-math231.jpg"
+    },
+    {
+      "title": "ECON 101 textbook: Principles of Economics (Mankiw)",
+      "description": "Mankiw for ECON 101, barely opened. Pencil notes only.",
+      "category": "textbook",
+      "condition": "like_new",
+      "priceCents": 5500,
+      "confidence": 0.9,
+      "sellerFirstName": "Hannah",
+      "photo": "photos/textbook-econ101.jpg"
+    },
+    {
+      "title": "BIOL 101 textbook: Campbell Biology",
+      "description": "Big Campbell Biology book, good for intro bio like BIOL 101. Cover has a little wear but pages are clean.",
+      "category": "textbook",
+      "condition": "good",
+      "priceCents": 8000,
+      "confidence": 0.85,
+      "sellerFirstName": "Aisha",
+      "photo": "photos/textbook-biol101.jpg"
+    },
+    {
+      "title": "PSYC 101 textbook: Psychology (Myers & DeWall)",
+      "description": "Used PSYC 101 book, a few highlighted chapters. Great for studying for the exams.",
+      "category": "textbook",
+      "condition": "fair",
+      "priceCents": 4000,
+      "confidence": 0.84,
+      "sellerFirstName": "Tyler",
+      "photo": "photos/textbook-psyc101.jpg"
+    },
+    {
+      "title": "Intro Python book: Python Crash Course (Matthes)",
+      "description": "Beginner Python book, handy for COMP 110 or any intro programming class. Good shape, no writing inside.",
+      "category": "textbook",
+      "condition": "like_new",
+      "priceCents": 2500,
+      "confidence": 0.86,
+      "sellerFirstName": "Yuki",
+      "photo": "photos/textbook-comp110.jpg"
+    },
+    {
+      "title": "Wood frame futon",
+      "description": "Full size futon with a green patterned cover, folds flat into a bed. You'll need to help carry it down the stairs.",
+      "category": "furniture",
+      "condition": "good",
+      "priceCents": 9000,
+      "confidence": 0.87,
+      "sellerFirstName": "Jamal",
+      "photo": "photos/futon.jpg"
+    },
+    {
+      "title": "White hybrid bike",
+      "description": "Comfy hybrid bike, 21 speeds, perfect for getting across campus. Tires were just pumped up.",
+      "category": "bicycle",
+      "condition": "good",
+      "priceCents": 11000,
+      "confidence": 0.9,
+      "sellerFirstName": "Emma",
+      "photo": "photos/bike.jpg"
+    },
+    {
+      "title": "Turkish style kilim rug, about 4x6",
+      "description": "Colorful flatweave rug that makes a dorm room feel less sad. Low pile, easy to clean.",
+      "category": "rug",
+      "condition": "good",
+      "priceCents": 3500,
+      "confidence": 0.85,
+      "sellerFirstName": "Nikhil",
+      "photo": "photos/rug.jpg"
+    },
+    {
+      "title": "17 inch LCD monitor",
+      "description": "Black 17in monitor with a VGA cable. Works fine as a second screen.",
+      "category": "monitor",
+      "condition": "good",
+      "priceCents": 3000,
+      "confidence": 0.91,
+      "sellerFirstName": "Olivia",
+      "photo": "photos/monitor.jpg"
+    },
+    {
+      "title": "Silver countertop microwave",
+      "description": "700W microwave, heats up ramen just fine. Plate and all, clean inside.",
+      "category": "microwave",
+      "condition": "good",
+      "priceCents": 3500,
+      "confidence": 0.92,
+      "sellerFirstName": "Chris",
+      "photo": "photos/microwave.jpg"
+    },
+    {
+      "title": "Carolina blue knit scarf",
+      "description": "Handmade blue scarf with fringe, good for cold game days. Never worn much.",
+      "category": "clothing",
+      "condition": "like_new",
+      "priceCents": 1200,
+      "confidence": 0.8,
+      "sellerFirstName": "Maya",
+      "photo": "photos/carolina-scarf.jpg"
+    },
+    {
+      "title": "Heavy duty bike U-lock",
+      "description": "Sturdy U-lock with two keys. Got a new one so selling this.",
+      "category": "bike lock",
+      "condition": "good",
+      "priceCents": 1800,
+      "confidence": 0.89,
+      "sellerFirstName": "Andre",
+      "photo": "photos/bike-lock.jpg"
+    },
+    {
+      "title": "TI-89 Titanium graphing calculator",
+      "description": "Works perfectly, comes with the slide cover. Good for MATH and PHYS classes.",
+      "category": "calculator",
+      "condition": "good",
+      "priceCents": 6000,
+      "confidence": 0.93,
+      "sellerFirstName": "Lena",
+      "photo": "photos/calculator.jpg"
+    },
+    {
+      "title": "Gray rolling desk chair",
+      "description": "Comfy office chair with arm rests that rolls smoothly. Seat has no rips.",
+      "category": "chair",
+      "condition": "good",
+      "priceCents": 4500,
+      "confidence": 0.9,
+      "sellerFirstName": "Omar",
+      "photo": "photos/office-chair.jpg"
+    },
+    {
+      "title": "Green plastic laundry basket",
+      "description": "Big laundry basket with handles, fits a whole week of clothes. A little scuffed.",
+      "category": "laundry basket",
+      "condition": "fair",
+      "priceCents": 500,
+      "confidence": 0.91,
+      "sellerFirstName": "Zoe",
+      "photo": "photos/laundry-basket.jpg"
+    },
+    {
+      "title": "Hamilton Beach coffee maker",
+      "description": "12 cup coffee maker with a thermal carafe, keeps coffee hot for hours. Cleaned with vinegar.",
+      "category": "coffee maker",
+      "condition": "good",
+      "priceCents": 2500,
+      "confidence": 0.92,
+      "sellerFirstName": "Ravi",
+      "photo": "photos/coffee-maker.jpg"
+    },
+    {
+      "title": "JBL Charge 3 bluetooth speaker",
+      "description": "Loud portable speaker, battery still lasts all day. Charging cable included.",
+      "category": "speaker",
+      "condition": "good",
+      "priceCents": 5500,
+      "confidence": 0.9,
+      "sellerFirstName": "Camille",
+      "photo": "photos/speaker.jpg"
+    },
+    {
+      "title": "50L hiking backpack",
+      "description": "Blue hiking pack with a ton of pockets, tag still on. Never actually took it hiking.",
+      "category": "backpack",
+      "condition": "like_new",
+      "priceCents": 4000,
+      "confidence": 0.86,
+      "sellerFirstName": "Ethan",
+      "photo": "photos/backpack.jpg"
+    },
+    {
+      "title": "3 shelf wooden bookcase",
+      "description": "Light wood bookcase, sturdy and easy to move. Fits all your textbooks and DVDs.",
+      "category": "furniture",
+      "condition": "good",
+      "priceCents": 3000,
+      "confidence": 0.9,
+      "sellerFirstName": "Fatima",
+      "photo": "photos/bookcase.jpg"
+    },
+    {
+      "title": "Blue USB desk fan",
+      "description": "Little blue desk fan, great for those hot dorm nights. Two speeds.",
+      "category": "fan",
+      "condition": "good",
+      "priceCents": 1000,
+      "confidence": 0.88,
+      "sellerFirstName": "Lucas",
+      "photo": "photos/desk-fan.jpg"
+    },
+    {
+      "title": "White electric kettle",
+      "description": "1.7L Philips electric kettle, boils fast for tea or noodles. Works great.",
+      "category": "kettle",
+      "condition": "good",
+      "priceCents": 1500,
+      "confidence": 0.9,
+      "sellerFirstName": "Mei",
+      "photo": "photos/kettle.jpg"
+    },
+    {
+      "title": "Houndstooth bean bag chair",
+      "description": "Big comfy bean bag, super nice for reading or gaming. Cover is clean.",
+      "category": "furniture",
+      "condition": "good",
+      "priceCents": 3500,
+      "confidence": 0.87,
+      "sellerFirstName": "Jordan",
+      "photo": "photos/bean-bag.jpg"
+    }
+  ],
+  "wants": [
+    {
+      "buyerFirstName": "Jasmine",
+      "queryText": "mini fridge under $40",
+      "maxPriceCents": 4000
+    },
+    {
+      "buyerFirstName": "Devon",
+      "queryText": "cheap bike lock under $15",
+      "maxPriceCents": 1500
+    },
+    {
+      "buyerFirstName": "Carlos",
+      "queryText": "monitor under $25",
+      "maxPriceCents": 2500
+    },
+    {
+      "buyerFirstName": "Brooke",
+      "queryText": "MATH 231 textbook under $50",
+      "maxPriceCents": 5000
+    },
+    {
+      "buyerFirstName": "Sam",
+      "queryText": "full length mirror for my dorm",
+      "maxPriceCents": 2500
+    },
+    {
+      "buyerFirstName": "Anika",
+      "queryText": "air fryer under $40",
+      "maxPriceCents": 4000
+    },
+    {
+      "buyerFirstName": "Kevin",
+      "queryText": "PS5 under $250",
+      "maxPriceCents": 25000
+    },
+    {
+      "buyerFirstName": "Tessa",
+      "queryText": "standing desk, ~$100",
+      "maxPriceCents": 10000
+    }
+  ]
+}

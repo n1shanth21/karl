@@ -6,14 +6,14 @@ You own everything the judges see that isn't a text message: the live dashboard 
 **Contract:** `GET /api/stats` returns the `Stats` type in `src/types.ts`; `web/mock-stats.json` is a sample of exactly that shape.
 
 ## Phase W1: dashboard on mock data · 5:30–8:30 PM
-- [ ] Next.js app in `web/` (run it on port 3001), deployed to Vercel
-- [ ] One page, projector + phone friendly: big counters (listed, sold, $ traded, students using Karl), a live feed of recent listings (photo, title, price, first name), a **"Text Karl"** block with the number + a QR code that opens `sms:<number>&body=hi%20karl`
-- [ ] Polls `NEXT_PUBLIC_API_URL/api/stats` every 5 s; falls back to `mock-stats.json` when unset or failing
-- [ ] Carolina blue accents; looks good on a dark projector
-**Finish line:** a public Vercel URL.
+- [x] Next.js app in `web/` (run it on port 3001), deployed to Vercel
+- [x] One page, projector + phone friendly: big counters (listed, sold, $ traded, students using Karl), a live feed of recent listings (photo, title, price, first name), a **"Text Karl"** block with the number + a QR code that opens `sms:<number>&body=hi%20karl`
+- [x] Polls `NEXT_PUBLIC_API_URL/api/stats` every 5 s; falls back to `mock-stats.json` when unset or failing
+- [x] Carolina blue accents; looks good on a dark projector
+**Finish line:** a public Vercel URL. ✅ https://karl-dashboard-lac.vercel.app
 
 ## Phase W2: brand + seed content · 8:30–11:30 PM
-- [ ] Karl's avatar (square PNG) + display name → give to Aarush for the Photon profile
+- [x] Karl's avatar (square PNG) + display name → give to Aarush for the Photon profile
 - [ ] `seed/seed-data.json`: ~25 realistic UNC listings (mini fridges, real course textbooks like CHEM 101 / MATH 231, desk lamps, a futon, a bike, a rug, a monitor, Carolina gear). Fields match `ListingDraft` + `sellerFirstName` + `photo` (file in `seed/photos/`, JPEG < 300 KB each). No tickets.
 - [ ] Also ~8 seed **wants** ("need a bike lock", "monitor under $80") so proactive matches happen in the demo
 **Finish line:** Himagna's seed script loads it.
@@ -39,4 +39,5 @@ Only edit web/. Read src/types.ts (the Stats type) and web/mock-stats.json first
 - **Aarush / Himagna:** set `PUBLIC_BASE_URL` on Railway (photo URLs default to localhost:3000). Dashboard also accepts relative `/photos/:id`.
 - **Himagna:** confirm `getStats` exists in `src/db/postgres.ts`; `listingsPerHour` is `[]` in memory mode (sparkline shows "Not enough data yet").
 - **Aarush:** Karl's production iMessage number → I set `NEXT_PUBLIC_KARL_NUMBER` in Vercel.
+- **Himagna (seed script):** `seed/seed-data.json` = `{listings: [ListingDraft + sellerFirstName + photo (path relative to seed/)], wants: [{buyerFirstName, queryText, maxPriceCents}]}`. Load listings before wants; per listing: savePhoto → createListing → status active → onListingActivated. Seeded users are fake: give them spaceIds that notifications skip, so Karl never texts them. No seeded want is satisfied by a seeded listing (on purpose), and there's no seeded desk lamp, so the live demo lamp beat works.
 - **Nishanth:** PLAN.md demo hook says "a hundred GroupMe chats" (unsourced); pitch now says "a dozen group chats".
