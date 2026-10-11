@@ -9,9 +9,9 @@ import { itemName } from "./format";
 
 export type RelayOutcome = "relayed" | "blocked" | "asked_which" | "not_relay";
 
-const COMMAND = /^(karl\b|cancel\b|help\b|stop\b|my stuff\b|sell\b|looking for\b|search\b)/i;
+export const COMMAND = /^(karl\b|cancel\b|help\b|stop\b|my stuff\b|sell\b|looking for\b|search\b)/i;
 const YES_NO_START = /^(yes|yeah|yep|yup|ya|sure|ok|no|nah|nope|did|didn't|it did)\b/i;
-const QUESTION_REFS = ["checkin", "match_request", "offer", "draft", "counter"];
+const QUESTION_REFS = ["checkin", "match_request", "offer", "draft", "counter", "availability", "meetup_slot"];
 const SHORT_ANSWER = /^(y|yes|yep|yeah|yup|n|no|nope|ok|okay|sure|👍|👎|❤️|👌)[.!\s]*$/i;
 
 /** Backslash-escape CommonMark specials so the renderer shows the text exactly as typed. */
@@ -48,7 +48,7 @@ async function relay(sender: User, match: Match, text: string): Promise<"relayed
 /**
  * Decide if a user's text is meant for their counterpart, and if so forward it.
  * Not relayed: no handoff match, text addressed to Karl, or an answer to Karl's own question
- * (a short yes/no, or anything while the meetup is still being picked).
+ * (a short yes/no answer to Karl's pending question).
  * Relayed to: the replied-to match (not_relay if that isn't an active handoff), else the only handoff match; with 2+ and no reply target, ask which.
  */
 export async function routeMessage(user: User, text: string, replyToMatchId?: string): Promise<RelayOutcome> {
@@ -61,8 +61,8 @@ export async function routeMessage(user: User, text: string, replyToMatchId?: st
   const lastRef = lastRefTo(user.id);
   if (lastRef && QUESTION_REFS.includes(lastRef.kind) && (YES_NO_START.test(trimmed) || SHORT_ANSWER.test(trimmed))) return "not_relay";
   if (await karlAskedQuestion(user)) {
-    const meetupUnset = matches.some((m) => m.status === "accepted");
-    if (SHORT_ANSWER.test(trimmed) || meetupUnset) return "not_relay";
+    // Meetup times are claimed earlier by the scheduler (inbound answerScheduling), so anything left here is chat.
+    if (SHORT_ANSWER.test(trimmed)) return "not_relay";
   }
 
   // A threaded reply must go to ITS match; never guess a different one.

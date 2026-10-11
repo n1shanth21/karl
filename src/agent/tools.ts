@@ -173,7 +173,7 @@ export const tools: Tool[] = [
   },
   {
     name: "set_meetup",
-    description: "Set the meetup spot and time for an accepted match.",
+    description: "Set the meetup spot and time for an accepted match. Times are ISO 8601 in America/New_York, relative to the \"now\" line in context.",
     parameters: params(
       { match_id: matchId, spot: { type: "string", enum: MEETUP_SPOTS }, time_iso: string("ISO 8601 time with timezone offset, daytime") },
       ["match_id", "spot", "time_iso"],
@@ -181,7 +181,9 @@ export const tools: Tool[] = [
     async run(user, args) {
       const id = str(args.match_id);
       const spot = MEETUP_SPOTS.find((s) => s.toLowerCase() === str(args.spot)?.toLowerCase());
-      const at = new Date(str(args.time_iso) ?? "");
+      let at = new Date(str(args.time_iso) ?? "");
+      const now = Date.now();
+      if (at.getTime() < now && at.getTime() + 864e5 > now) at = new Date(at.getTime() + 864e5); // past today -> same clock time tomorrow
       if (!id) return bad("match_id is required");
       if (!spot) return bad(`spot must be one of: ${MEETUP_SPOTS.join("; ")}`);
       if (Number.isNaN(at.getTime())) return bad("time_iso must be an ISO 8601 time");

@@ -11,6 +11,7 @@ import { fakeUser, lastTextTo, resetAll, sentTo } from "./helpers";
 import { registerNotifications } from "../../src/agent/notifications";
 import { cancelMatch, confirmHappened, proposeMatch, respondToMatch, setMeetup } from "../../src/flows/match";
 import { meetupProposal } from "../../src/flows/meetup";
+import { onSlotVote } from "../../src/flows/scheduling";
 import { routeMessage } from "../../src/flows/relay";
 
 registerNotifications(); // once: the bus is process-wide
@@ -36,7 +37,7 @@ async function heldMatch(listing: Listing): Promise<string> {
 /** Held match with the meetup already picked, so the sides can chat freely. */
 async function meetupMatch(listing: Listing): Promise<string> {
   const matchId = await heldMatch(listing);
-  await setMeetup(buyer, matchId, "the Pit", new Date(Date.now() + 3_600_000));
+  await db.updateMatch(matchId, { status: "meetup_set", meetupSpot: "the Pit", meetupAt: new Date(Date.now() + 3_600_000) }); // scheduling itself is tested in scheduling.test.ts
   return matchId;
 }
 
@@ -70,11 +71,13 @@ test("propose, accept, meetup, both confirm: listing sold", async () => {
   expect(sellerReply).toContain("numbers stay private");
   expect((await db.getMatch(match!.id))?.status).toBe("accepted");
   expect((await db.getListing(listing.id))?.status).toBe("held");
-  expect(lastTextTo(buyer)).toBe("Sam said yes, the mini fridge is held for you for 2 hrs. the Pit at 1pm or Student Union lobby at 2pm? or suggest a time");
+  expect(lastTextTo(buyer)).toStartWith("Sam said yes, the mini fridge is held for you. when are you free to meet");
 
-  expect(await setMeetup(buyer, match!.id, "the pit", new Date(Date.now() + 3_600_000))).toContain("only pay once you have it in hand");
-  expect(lastTextTo(seller)).toContain("meetup set: the Pit at 1pm");
   expect(await setMeetup(buyer, match!.id, "my dorm room", new Date(Date.now() + 3_600_000))).toContain("the Pit");
+  expect(await setMeetup(buyer, match!.id, "the pit", new Date(Date.now() + 3_600_000))).toContain("asked Sam if the Pit at 1pm works");
+  expect((await db.getMatch(match!.id))?.status).toBe("accepted"); // the seller has to agree first
+  expect(await onSlotVote(seller, match!.id, true)).toContain("locked in: the Pit at 1pm");
+  expect(lastTextTo(buyer)).toBe("locked in: the Pit at 1pm. only pay once you have it in hand");
 
   await confirmHappened(buyer, match!.id, true);
   expect((await db.getListing(listing.id))?.status).toBe("held");
@@ -194,7 +197,7 @@ test("meetup times in the past or outside 9am-8pm are rejected", async () => {
   expect((await db.getMatch(matchId))?.status).toBe("accepted");
   expect(await setMeetup(buyer, matchId, "the Pit", new Date("2026-10-13T03:00:00Z"))).toContain("9am and 8pm"); // 11pm EDT
   expect((await db.getMatch(matchId))?.status).toBe("accepted");
-  expect(await setMeetup(buyer, matchId, "the Pit", new Date("2026-10-12T23:30:00Z"))).toContain("meetup set"); // 7:30pm EDT
+  expect(await setMeetup(buyer, matchId, "the Pit", new Date("2026-10-12T23:30:00Z"))).toContain("asked Sam"); // 7:30pm EDT: fine, but Sam must agree
 });
 
 test("accepting a match and offering a want leave a drafting_listing state alone", async () => {
@@ -212,9 +215,10 @@ test("accepting a match and offering a want leave a drafting_listing state alone
   expect((await db.getUser(buyer.id))?.state).toEqual(draft);
 });
 
-test("while the meetup is still being picked, replies go to Karl, not the other side", async () => {
+test("while the meetup is still being picked, a real question still reaches the other side", async () => {
+  // (time-like answers never get here: the scheduler in inbound.ts claims them first)
   await heldMatch(await makeListing(seller.id, "Mini fridge"));
-  expect(await routeMessage(buyer, "the pit at noon works")).toBe("not_relay");
+  expect(await routeMessage(buyer, "does it come with the shelf?")).toBe("relayed");
 });
 
 test("match_found offers the listing with a photo, a ref, and choosing_result state", async () => {

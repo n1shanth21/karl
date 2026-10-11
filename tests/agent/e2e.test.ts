@@ -21,7 +21,7 @@ registerNotifications(); // once: the bus is process-wide
 
 // Weekday noon in New York (Wed 2026-10-14, EDT), so "2:30pm" is a valid daytime meetup.
 const NOON_ET = new Date("2026-10-14T12:00:00-04:00");
-const MEETUP_AT = "2026-10-14T14:30:00-04:00";
+const MEETUP_AT = "2026-10-15T15:00:00-04:00"; // tomorrow 3pm: the overlap of Maya 2-5 and Jordan 3-6
 
 const MAYA_PHONE = "+19195550101";
 const JORDAN_PHONE = "+19195550102";
@@ -171,7 +171,7 @@ test("a desk lamp goes from photo to sold, across two phones, through handleInbo
   step = "5 request";
   await maya(text("yes"));
   expect(await lastText(mayaUser)).toContain("asked the seller");
-  expect(await lastText(jordanUser)).toBe("someone wants your desk lamp at $15. ok to hold it for them for 2 hrs? (❤️ or yes)");
+  expect(await lastText(jordanUser)).toBe("someone wants your desk lamp at $15. ok to hold it for them for 12 hrs? (❤️ or yes)");
   const requestMsgId = sentTo(jordanUser).at(-1)!.id;
   expect(lookupRef(requestMsgId)).toMatchObject({ kind: "match_request" });
   expect(chatCalls).toHaveLength(2);
@@ -182,32 +182,27 @@ test("a desk lamp goes from photo to sold, across two phones, through handleInbo
   const [match] = await db.activeMatchesForUser(mayaUser.id);
   expect(match).toMatchObject({ status: "accepted", buyerId: mayaUser.id, sellerId: jordanUser.id });
   expect((await db.getListing(listing!.id))!.status).toBe("held");
-  const proposal = "the Pit at 1pm or Student Union lobby at 2pm? or suggest a time";
-  expect(await lastText(mayaUser)).toContain("Jordan said yes, the desk lamp is held for you");
-  expect(await lastText(mayaUser)).toContain(proposal);
-  expect(await lastText(jordanUser)).toContain("held the desk lamp for Maya");
-  expect(await lastText(jordanUser)).toContain(proposal);
+  const ask = "when are you free to meet in the next couple days? (like 'tmr after 2' or 'sat 11-3')";
+  expect(await lastText(mayaUser)).toBe(`Jordan said yes, the desk lamp is held for you. ${ask}`);
+  expect(await lastText(jordanUser)).toBe(`held the desk lamp for Maya, numbers stay private, i'll pass messages along. ${ask}`);
+  expect(lookupRef(sentTo(mayaUser).at(-1)!.id)).toEqual({ kind: "availability", matchId: match!.id });
   expect(chatCalls).toHaveLength(2);
 
-  // ---------------------------------------------------------------- 7. Maya picks the Pit at 2:30: Gemini calls set_meetup
+  // ---------------------------------------------------------------- 7. Each says when they're free (plain code, no Gemini); Karl finds the overlap; both agree
   step = "7 meetup";
-  chatQueue.push(
-    (req) => {
-      expect(lastContent(req)).toEqual({ role: "user", parts: [{ text: "the pit at 2:30 works" }] });
-      return call("set_meetup", { match_id: match!.id, spot: "the Pit", time_iso: MEETUP_AT });
-    },
-    (req) => {
-      expect(toolResult(req)?.name).toBe("set_meetup");
-      expect(JSON.stringify(toolResult(req)?.response)).toContain("meetup set: the Pit at 2:30pm");
-      return say("locked in, the pit at 2:30. see you there");
-    },
-  );
-  await maya(text("the pit at 2:30 works"));
-  expect(chatCallsIn(step)).toBe(2);
-  expect(chatQueue).toHaveLength(0);
-  expect(await lastText(mayaUser)).toBe("locked in, the pit at 2:30. see you there");
+  await maya(text("tmr 2-5"));
+  expect(await lastText(mayaUser)).toBe("got it, waiting on Jordan's times");
+  await jordan(text("the pit tmr 3-6"));
+  const proposal = "you're both free tomorrow 3–5pm. the Pit tomorrow at 3pm? 👍 or 👎 for another option";
+  expect(await lastText(jordanUser)).toBe(proposal);
+  expect(await lastText(mayaUser)).toBe(proposal);
+  await maya(tapback("👍", sentTo(mayaUser).at(-1)!.id));
+  expect((await db.getMatch(match!.id))!.status).toBe("accepted"); // one yes is not a meetup
+  await jordan(text("yes"));
+  expect(chatCalls).toHaveLength(2);
   expect(await db.getMatch(match!.id)).toMatchObject({ status: "meetup_set", meetupSpot: "the Pit", meetupAt: new Date(MEETUP_AT) });
-  expect(await lastText(jordanUser)).toBe("meetup set: the Pit at 2:30pm, for the desk lamp. text me if plans change.");
+  expect(await lastText(mayaUser)).toBe("locked in: the Pit tomorrow at 3pm. only pay once you have it in hand");
+  expect(await lastText(jordanUser)).toBe("locked in: the Pit tomorrow at 3pm. i'll pass messages along");
 
   // ---------------------------------------------------------------- 8. Maya texts "omw": relayed, labeled, no phone number
   step = "8 relay omw";
@@ -215,7 +210,7 @@ test("a desk lamp goes from photo to sold, across two phones, through handleInbo
   expect(await lastText(jordanUser)).toBe("**Maya · desk lamp**\nomw");
   expect((await received(jordanUser)).at(-1)!.built?.type).toBe("markdown");
   expect(await lastText(jordanUser)).not.toMatch(/\d/); // no digits at all, so no piece of her number can leak
-  expect(chatCalls).toHaveLength(4); // routing is plain code
+  expect(chatCalls).toHaveLength(2); // routing is plain code
 
   // ---------------------------------------------------------------- 9. Jordan texts "venmo me first pls"
   step = "9 relay venmo";
@@ -224,7 +219,7 @@ test("a desk lamp goes from photo to sold, across two phones, through handleInbo
   const mayaTexts = (await texts(mayaUser)).slice(-2);
   expect(mayaTexts[0]).toBe("**Jordan · desk lamp**\nvenmo me first pls");
   expect(mayaTexts[1]).toMatch(/^heads up: only pay once/);
-  expect(chatCalls).toHaveLength(4);
+  expect(chatCalls).toHaveLength(2);
 
   // ---------------------------------------------------------------- 10. Timer fires the check-in; both say yep: sold, both thanked
   step = "10 checkin";
@@ -247,7 +242,7 @@ test("a desk lamp goes from photo to sold, across two phones, through handleInbo
   expect(await db.activeMatchesForUser(mayaUser.id)).toHaveLength(0);
 
   // ---------------------------------------------------------------- Gemini was only used where expected
-  expect(chatCalls.map((c) => c.step)).toEqual(["2 want", "2 want", "7 meetup", "7 meetup"]);
+  expect(chatCalls.map((c) => c.step)).toEqual(["2 want", "2 want"]);
   expect(chatQueue).toHaveLength(0);
   expect(describeCalls).toHaveLength(1);
 

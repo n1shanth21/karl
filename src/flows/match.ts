@@ -1,22 +1,21 @@
 // Match lifecycle: propose → seller accepts (hold) → meetup → did it happen → sold. Owner: Nishanth.
 
-import { LIMITS, MEETUP_SPOTS } from "../config";
+import { MEETUP_SPOTS } from "../config";
 import { db } from "../db";
 import { offeredWant, reopenOfferedWant } from "../agent/notifications";
 import { isSeedUser, sendTo } from "../spectrum/send";
 import type { Listing, Match, User } from "../types";
 import { dollars, itemName } from "./format";
 import { holdAtPrice, keepAgreedPrice, releaseHold } from "./holds";
-import { describeTime, meetupProposal, meetupTimeProblem } from "./meetup";
+import { meetupTimeProblem } from "./meetup";
+import { askAvailability, SCHEDULING_HOLD_MS, suggestSlot } from "./scheduling";
 
 const NO_MATCH = "i can't find that one. text 'my stuff' to see what's active";
 const DEMO_LISTING = "that one's a demo listing, so the seller isn't reachable. i'll keep looking and text you if a real one shows up";
-const PAY_REMINDER = "only pay once you have it in hand.";
 const HANDOFF = ["accepted", "meetup_set"];
 const OPEN = ["proposed", ...HANDOFF];
-const relayRef = (matchId: string) => ({ ref: { kind: "relay", matchId } }) as const;
 
-const holdText = `${LIMITS.holdMinutes / 60} hrs`;
+const holdText = `${SCHEDULING_HOLD_MS / 3_600_000} hrs`; // the real hold (it must outlast an overnight "when are you free?")
 
 export type Ctx = { match: Match; listing: Listing; buyer: User; seller: User };
 
@@ -93,24 +92,27 @@ export async function acceptMatch(ctx: Ctx, by: "seller" | "buyer", agreedCents?
     return `sorry, the ${item} isn't available anymore`;
   }
 
-  const holdExpiresAt = new Date(Date.now() + LIMITS.holdMinutes * 60_000);
+  const holdExpiresAt = new Date(Date.now() + SCHEDULING_HOLD_MS); // long enough to outlast an overnight "when are you free?"
   await db.updateMatch(match.id, { status: "accepted", holdExpiresAt });
   await holdAtPrice(listing, agreedCents);
 
-  const options = meetupProposal();
   const price = agreedCents === undefined ? "" : dollars(agreedCents);
   const buyerName = buyer.firstName ?? "the buyer";
   if (by === "buyer") {
-    await sendTo(seller, `${buyerName} took ${price}! the ${item} is held for them for ${holdText}. ${options}`, relayRef(match.id));
-    return `deal at ${price}, the ${item} is held for you for ${holdText}, numbers stay private, i'll pass messages along. ${options}`;
+    return askAvailability(ctx, "buyer", {
+      actor: `deal at ${price}, the ${item} is held for you, numbers stay private, i'll pass messages along.`,
+      other: `${buyerName} took ${price}! the ${item} is held for them.`,
+    });
   }
   const said = price ? `said yes to ${price}` : "said yes";
-  await sendTo(buyer, `${seller.firstName ?? "the seller"} ${said}, the ${item} is held for you for ${holdText}. ${options}`, relayRef(match.id));
   const forWhom = price ? `${buyerName} at ${price}` : buyerName;
-  return `held the ${item} for ${forWhom} for ${holdText}, numbers stay private, i'll pass messages along. ${options}`;
+  return askAvailability(ctx, "seller", {
+    actor: `held the ${item} for ${forWhom}, numbers stay private, i'll pass messages along.`,
+    other: `${seller.firstName ?? "the seller"} ${said}, the ${item} is held for you.`,
+  });
 }
 
-/** Either side picks spot + time → meetup_set; tell the other side. */
+/** Either side proposes a spot + time (the set_meetup tool). It only locks once the OTHER side agrees (👍 on the same slot). */
 export async function setMeetup(user: User, matchId: string, spot: string, at: Date): Promise<string> {
   const ctx = await load(matchId, user.id);
   if (!ctx || !HANDOFF.includes(ctx.match.status)) return NO_MATCH;
@@ -119,12 +121,7 @@ export async function setMeetup(user: User, matchId: string, spot: string, at: D
 
   const problem = meetupTimeProblem(at);
   if (problem) return problem;
-
-  await db.updateMatch(matchId, { status: "meetup_set", meetupSpot: place, meetupAt: at });
-  const isBuyer = user.id === ctx.buyer.id;
-  const note = `meetup set: ${place} ${describeTime(at)}, for the ${itemName(ctx.listing)}. text me if plans change.`;
-  await sendTo(isBuyer ? ctx.seller : ctx.buyer, isBuyer ? note : `${note} ${PAY_REMINDER}`, relayRef(matchId));
-  return isBuyer ? `${note} ${PAY_REMINDER}` : note;
+  return suggestSlot(user, matchId, place, at);
 }
 
 /** Cancel the match, free the listing, tell the other side. */

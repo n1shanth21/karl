@@ -6,6 +6,8 @@ const TZ = "America/New_York";
 const HALF_HOUR = 30 * 60_000;
 const HOUR = 2 * HALF_HOUR;
 const DAY = 24 * HOUR;
+/** Meetups only happen in this daytime band (New York wall clock hours). */
+export const MEETUP_HOURS = { start: 9, end: 20 };
 
 const wallClock = new Intl.DateTimeFormat("en-US", {
   timeZone: TZ,
@@ -18,13 +20,13 @@ const wallClock = new Intl.DateTimeFormat("en-US", {
 });
 
 /** The wall-clock fields a New York clock shows at this instant. */
-function nyParts(d: Date) {
+export function nyParts(d: Date) {
   const fields = Object.fromEntries(wallClock.formatToParts(d).map((p) => [p.type, Number(p.value)]));
   return fields as Record<"year" | "month" | "day" | "hour" | "minute", number>;
 }
 
 /** The instant when a New York clock shows this date and time. */
-function nyDate(year: number, month: number, day: number, hour: number): Date {
+export function nyDate(year: number, month: number, day: number, hour: number): Date {
   const guess = Date.UTC(year, month - 1, day, hour);
   const shown = nyParts(new Date(guess));
   return new Date(guess - (Date.UTC(shown.year, shown.month - 1, shown.day, shown.hour, shown.minute) - guess));
@@ -46,7 +48,7 @@ export function meetupTimeProblem(at: Date, now = new Date()): string | null {
   if (Number.isNaN(at.getTime()) || at.getTime() < now.getTime()) return "that time already passed. what time later works?";
   const { hour, minute } = nyParts(at);
   const hours = hour + minute / 60;
-  if (hours < 9 || hours > 20) return "i only set up daytime meetups, between 9am and 8pm. what time works?";
+  if (hours < MEETUP_HOURS.start || hours > MEETUP_HOURS.end) return "i only set up daytime meetups, between 9am and 8pm. what time works?";
   return null;
 }
 

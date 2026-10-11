@@ -12,7 +12,8 @@ import { cancelWant, pickResult } from "../flows/buy";
 import { parseOfferCents, parsePriceCents } from "../flows/format";
 import { confirmHappened, endDealsForBannedUser, proposeMatch } from "../flows/match";
 import { answerBid, counterOffer, makeOffer, respondToOffer } from "../flows/offers";
-import { routeMessage } from "../flows/relay";
+import { COMMAND, routeMessage } from "../flows/relay";
+import { awaitingRef, onAvailability, onSlotVote, schedulingOpen, takeFollowUp } from "../flows/scheduling";
 import { markStillActive } from "../flows/staleness";
 import { allowMessage, checkImage, isBanned } from "../safety";
 import type { User } from "../types";
@@ -22,7 +23,7 @@ import { clearLastRef, last4, lastRefTo, rememberSpace, sendTo } from "./send";
 
 type Image = Extract<Content, { type: "attachment" }>;
 // One inbound message, reduced to what the batch needs.
-type Part = { space: Space; isNew: boolean; text?: string; image?: Image; matchId?: string };
+type Part = { space: Space; isNew: boolean; text?: string; image?: Image; matchId?: string; ref?: Ref };
 
 const INTRO =
   "hey, i'm karl 👋 i help unc students buy and sell stuff over text. send a photo to sell something, or tell me what you're looking for. (what's your first name btw?)";
@@ -86,7 +87,7 @@ function readContent(c: Content): Omit<Part, "space" | "isNew"> {
   if (c.type === "attachment") return c.mimeType.startsWith("image/") ? { image: c } : {};
   if (c.type === "reply") {
     const ref = lookupRef(c.target.id);
-    return { ...readContent(c.content), matchId: ref && "matchId" in ref ? ref.matchId : undefined };
+    return { ...readContent(c.content), ref, matchId: ref && "matchId" in ref ? ref.matchId : undefined };
   }
   return {};
 }
@@ -182,11 +183,16 @@ async function handleTapback(user: User, ref: Ref | undefined, emoji: string): P
   if (reply) await deliver(user, ref, yes, reply);
 }
 
+/** Send Karl's reply. `keep` (or a scheduling follow-up question) re-tags it so the next answer finds the same question. */
+async function sendReply(user: User, reply: string, keep?: Ref): Promise<void> {
+  const ref = keep ?? takeFollowUp(user.id);
+  await sendTo(user, reply, ref ? { ref } : {});
+  if (!ref) clearLastRef(user.id);
+}
+
 /** Send the reply to an answered question. A "yes" to a spread offer only asks for a price, so that question stays open. */
 async function deliver(user: User, ref: Ref, yes: boolean, reply: string): Promise<void> {
-  const keep = ref.kind === "offer" && ref.spread && yes;
-  await sendTo(user, reply, keep ? { ref } : {});
-  if (!keep) clearLastRef(user.id);
+  await sendReply(user, reply, ref.kind === "offer" && ref.spread && yes ? ref : undefined);
 }
 
 /**
@@ -209,10 +215,7 @@ async function answerPrice(user: User, text: string): Promise<boolean> {
     reply = listing && cents! < listing.priceCents ? await makeOffer(user, listing, cents!) : null; // free text never becomes a full-price request
   }
   if (reply === null) return false;
-  if (reply) { // "" = a capped counter already re-asked the question (with its own ref)
-    await sendTo(user, reply);
-    clearLastRef(user.id);
-  }
+  if (reply) await sendReply(user, reply); // "" = a capped counter already re-asked the question (with its own ref)
   return true;
 }
 
@@ -227,10 +230,34 @@ async function answerShortcut(user: User, text: string): Promise<boolean> {
   if (words.length > 4 || (!yes && !NO_TEXT.test(text.trim()))) return false;
 
   if (!ref || ref.kind === "relay") return false;
+  if ((ref.kind === "meetup_slot" || ref.kind === "availability") && !(await schedulingOpen(ref.matchId, ref))) return false; // a stale scheduling question
   // With several results on screen, "yes" is ambiguous: let the agent work out which one.
   if (ref.kind === "result" && user.state.kind === "choosing_result" && user.state.listingIds.length > 1) return false;
 
   return answerNow(user, ref, yes);
+}
+
+const BURIED_BY = ["relay", "match_request", "counter"]; // answered or chatty refs that shouldn't hide an owed availability
+/**
+ * "When are you free?" and "the Pit tmr 2pm? 👍/👎" are answered here in plain code (never relayed, never Gemini).
+ * After "when are you free?" ANY text is their availability; after a proposal, yes/no votes and a NEW time/spot replaces
+ * their availability. With no such question in front of them (a relay buried it) a chatty text still falls through.
+ */
+async function answerScheduling(user: User, text: string, threaded?: Ref): Promise<boolean> {
+  const t = text.trim();
+  const asked = (r?: Ref) => (r?.kind === "availability" || r?.kind === "meetup_slot" ? r : undefined);
+  const last = lastRefTo(user.id);
+  const direct = asked(threaded) ?? asked(last);
+  const ref = direct ?? asked(!last || BURIED_BY.includes(last.kind) ? await awaitingRef(user.id) : undefined);
+  if (!ref || COMMAND.test(t) || !(await schedulingOpen(ref.matchId, ref))) return false; // locked/expired: it's chat, relay it
+
+  if (ref.kind === "meetup_slot" && t.split(/\s+/).length <= 2 && (YES_TEXT.test(t) || NO_TEXT.test(t))) {
+    return answerNow(user, ref, YES_TEXT.test(t));
+  }
+  const reply = await onAvailability(user, ref.matchId, t, !(direct?.kind === "availability")); // soft unless they were just asked
+  if (reply === null) return false;
+  await sendReply(user, reply);
+  return true;
 }
 
 /** Answer a pending question and send the reply. False when the agent should decide (e.g. "no" to a draft). */
@@ -262,9 +289,10 @@ async function answerRef(user: User, ref: Ref, yes: boolean): Promise<string | n
       return confirmHappened(user, ref.matchId, yes);
     case "relay":
       return null;
-    case "availability": // TODO(wave: scheduling flow)
-    case "meetup_slot": // TODO(wave: scheduling flow)
+    case "availability": // a tapback on "when are you free?" means nothing; the typed answer is handled in answerScheduling
       return null;
+    case "meetup_slot":
+      return onSlotVote(user, ref.matchId, yes, ref);
     case "bid": // a seller's yes/no to "someone wants one around $15" (a price is handled in answerPrice)
       return answerBid(user, ref, { yes });
     case "still_active": {
@@ -290,6 +318,7 @@ async function processBatch(userId: string, parts: Part[]): Promise<void> {
 }
 
 async function answerBatch(user: User, parts: Part[]): Promise<void> {
+  takeFollowUp(user.id); // drop any leftover from an earlier turn
   const text = parts.map((p) => p.text).filter(Boolean).join("\n");
   const images = parts.flatMap((p) => p.image ?? []);
 
@@ -310,6 +339,7 @@ async function answerBatch(user: User, parts: Part[]): Promise<void> {
     }
   }
   if (text && (await answerPrice(user, text))) return;
+  if (text && (await answerScheduling(user, text, parts.findLast((p) => p.ref)?.ref))) return;
   if (text && (await answerShortcut(user, text))) return;
   if (text) return answerText(user, text, parts.findLast((p) => p.matchId)?.matchId);
   await sendTo(user, "i can only read texts and photos right now");
@@ -344,5 +374,6 @@ async function answerText(user: User, text: string, replyToMatchId?: string): Pr
   const outcome = await routeMessage(user, text, replyToMatchId);
   if (outcome !== "not_relay") return;
   const reply = await runAgentTurn(user, text);
-  if (reply) await sendTo(user, reply);
+  const followUp = takeFollowUp(user.id); // the agent's tool may have asked a scheduling question
+  if (reply) await sendTo(user, reply, followUp ? { ref: followUp } : {});
 }

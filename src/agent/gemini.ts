@@ -18,6 +18,8 @@ export interface GeminiApi {
   chat(req: { system: string; contents: Content[]; tools: ToolSpec[] }): Promise<Content>;
   /** Which listing titles ARE the item the buyer asked for (same kind of item)? 0-based indices; [] = none. */
   pickRelevant(request: string, titles: string[]): Promise<number[]>;
+  /** Free text about when someone is free -> absolute windows (ISO 8601, New York time) + a campus spot if they named one. */
+  extractAvailability(text: string, nowIso: string): Promise<{ windows: { startIso: string; endIso: string }[]; spot: string | null }>;
 }
 
 let client: GoogleGenAI | null = null;
@@ -150,23 +152,67 @@ async function pickRelevantOnce(model: string, request: string, titles: string[]
   return indices.filter((i): i is number => Number.isInteger(i) && i >= 0 && i < titles.length);
 }
 
+const AVAILABILITY_SCHEMA = {
+  type: "object",
+  properties: {
+    windows: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          startIso: { type: "string", description: 'ISO 8601 with New York offset, like "2026-10-11T14:00:00-04:00"' },
+          endIso: { type: "string", description: "Same format; after startIso" },
+        },
+        required: ["startIso", "endIso"],
+      },
+    },
+    spot: { type: "string", description: "A campus meetup spot they named (the Pit, student union, Davis library, Lenoir, Rams Head), else empty string" },
+  },
+  required: ["windows", "spot"],
+};
+
+async function extractAvailabilityOnce(model: string, text: string, nowIso: string) {
+  const when = new Date(nowIso).toLocaleString("en-US", { timeZone: "America/New_York", dateStyle: "full", timeStyle: "short" });
+  const prompt =
+    `It is right now ${when} in New York (${nowIso}). A UNC student texted when they are free to meet to hand off an item: "${text}"\n` +
+    `Return the time windows they are free as absolute ISO 8601 timestamps with the New York offset. "today", "tmr" and "tomorrow" are relative to the current ` +
+    `date above (tmr is the next calendar day, even at 9pm, but between midnight and 5am it means the coming daytime, i.e. today). A single time like "6pm" is a one hour window. "after 2" runs to 8pm. ` +
+    `Only consider 9am to 8pm and the next 7 days. If they name no usable time, return an empty list.`;
+  const res = await ai().models.generateContent({
+    model,
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseJsonSchema: AVAILABILITY_SCHEMA,
+      thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+      abortSignal: AbortSignal.timeout(10_000),
+    },
+  });
+  const out = JSON.parse(res.text ?? "{}") as { windows?: unknown; spot?: unknown };
+  if (!Array.isArray(out.windows)) throw new Error("Gemini returned no windows");
+  const windows = out.windows.filter((w): w is { startIso: string; endIso: string } => typeof w?.startIso === "string" && typeof w?.endIso === "string");
+  return { windows, spot: typeof out.spot === "string" && out.spot.trim() ? out.spot.trim() : null };
+}
+
 const real: GeminiApi = {
   describeItem: (jpeg, caption) => withRetry((model) => describeItemOnce(model, jpeg, caption), "describeItem"),
   chat: (req) => withRetry((model) => chatOnce(model, req), "chat"),
   pickRelevant: (request, titles) => withRetry((model) => pickRelevantOnce(model, request, titles), "pickRelevant"),
+  extractAvailability: (text, nowIso) => withRetry((model) => extractAvailabilityOnce(model, text, nowIso), "extractAvailability"),
 };
 // Under `bun test` the real API is off limits (bun loads .env, so a missing fake would bill a real call).
 const offline = (name: string) => async (): Promise<never> => {
   throw new Error(`real Gemini ${name}() called from a test: fake it with setGeminiForTests`);
 };
 const base: GeminiApi =
-  process.env.NODE_ENV === "test" ? { describeItem: offline("describeItem"), chat: offline("chat"), pickRelevant: offline("pickRelevant") } : real;
+  process.env.NODE_ENV === "test" ? { describeItem: offline("describeItem"), chat: offline("chat"), pickRelevant: offline("pickRelevant"), extractAvailability: offline("extractAvailability") } : real;
 let impl: GeminiApi = base;
 
 export const gemini: GeminiApi = {
   describeItem: (jpeg, caption) => impl.describeItem(jpeg, caption),
   chat: (req) => impl.chat(req),
   pickRelevant: (request, titles) => impl.pickRelevant(request, titles),
+  extractAvailability: (text, nowIso) => impl.extractAvailability(text, nowIso),
 };
 
 export function setGeminiForTests(fake: Partial<GeminiApi>): void {
