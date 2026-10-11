@@ -5,13 +5,14 @@ import { along, param } from "../lib/motion";
 import { createPacket } from "../lib/packet";
 import { fader, textLabel } from "../lib/label";
 import { playClip, videoTexture } from "../lib/phone";
-import { hidePacket, ROUTE_TO_SELLER } from "./s06-privacy";
+import { hidePacket, NODE_SCALE, ROUTE_TO_SELLER, SELLER } from "./s06-privacy";
 
 // 7 · Negotiation. Same buyer · Karl · seller layout as the relay scene: an offer travels to
 // the seller, a counter comes back, and "deal · $40" lands at Karl. The seller's phone plays
 // the Negotiation clip (offer -> "40" -> "Maya took $40!"). Move: ping-pong packets + deal pop.
 
 const ROUTE_TO_BUYER = [...ROUTE_TO_SELLER].reverse();
+const FOCUS_SCALE = 0.95; // seller phone size during the close-up (relay layout uses NODE_SCALE)
 let offer: ReturnType<typeof createPacket>;
 let counter: ReturnType<typeof createPacket>;
 let deal: THREE.Mesh;
@@ -39,7 +40,7 @@ export const negotiation: Scene = {
     dealFade = fader([d.mat], 0);
 
     this.texts = [
-      text(w, "Karl haggles for you.", { x: 960, y: 110, cls: "title", align: "center" }),
+      text(w, "Karl haggles for you.", { x: 140, y: 100, cls: "title" }),
       text(w, "offer → counter → deal · nothing changes until someone says yes", { x: 960, y: 930, cls: "small", align: "center" }),
     ];
   },
@@ -73,6 +74,13 @@ export const negotiation: Scene = {
     tl.fromTo(deal.scale, { x: 0.4, y: 0.4, z: 0.4 }, { x: 1, y: 1, z: 1, duration: 0.7, ease: "back.out(2.4)", immediateRender: false }, 7.4);
     tl.to(dealFade, { opacity: 1, duration: 0.4 }, 7.4);
     textIn(tl, this.texts[1], 7.9);
+
+    // 4) push in on the seller's phone so the negotiation thread is readable
+    tl.to(P.seller.group.scale, { x: FOCUS_SCALE, y: FOCUS_SCALE, z: FOCUS_SCALE, duration: 1.6, ease: "power2.inOut" }, 8.6);
+    tl.to(P.seller.group.rotation, { y: 0, duration: 1.6, ease: "power2.inOut" }, 8.6);
+    tl.to(P.seller.group.position, { z: SELLER.z + 2.5, duration: 1.6, ease: "power2.inOut" }, 8.6); // in front of the relay wire
+    tl.to(w.camera.position, { x: SELLER.x - 6, y: SELLER.y - 0.4, z: SELLER.z + 19, duration: 1.8, ease: "power3.inOut" }, 8.6);
+    tl.to(w.look, { x: SELLER.x - 6, y: SELLER.y - 0.4, z: SELLER.z, duration: 1.8, ease: "power3.inOut" }, 8.6);
   },
 
   settle() {
@@ -84,4 +92,11 @@ export const negotiation: Scene = {
 /** The next scene clears the "deal · $40" label (it sits where safety's "blocked" appears). */
 export function hideDeal(tl: gsap.core.Timeline, at: number) {
   tl.to(dealFade, { opacity: 0, duration: 0.4 }, at);
+}
+
+/** The next scene puts the seller's phone back into the buyer · Karl · seller layout. */
+export function restoreSeller(tl: gsap.core.Timeline, at: number) {
+  tl.to(P.seller.group.scale, { x: NODE_SCALE, y: NODE_SCALE, z: NODE_SCALE, duration: 1.2, ease: "power2.inOut" }, at);
+  tl.to(P.seller.group.rotation, { y: -0.3, duration: 1.2, ease: "power2.inOut" }, at);
+  tl.to(P.seller.group.position, { z: SELLER.z, duration: 1.2, ease: "power2.inOut" }, at);
 }

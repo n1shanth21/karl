@@ -6,7 +6,7 @@ import { createPacket } from "../lib/packet";
 import { fader, textLabel } from "../lib/label";
 import { playClip, videoTexture } from "../lib/phone";
 import { BUYER, ROUTE_TO_SELLER } from "./s06-privacy";
-import { hideDeal } from "./s07-negotiation";
+import { hideDeal, restoreSeller } from "./s07-negotiation";
 import { COLORS } from "../world";
 
 // 8 · Safety. A "venmo me first pls" packet hits Karl's scan rings, turns red, and the
@@ -80,6 +80,7 @@ export const safety: Scene = {
 
   build(w, tl) {
     hideDeal(tl, 0);
+    restoreSeller(tl, 0);
     tl.to(w.camera.position, { x: HUB.x - 1, y: HUB.y + 1.2, z: HUB.z + 23, duration: 2.0 }, 0);
     tl.to(w.look, { x: HUB.x - 1, y: HUB.y + 1, z: HUB.z, duration: 2.0 }, 0);
     textIn(tl, this.texts[0], 0.8);

@@ -11,7 +11,7 @@ import { World } from "./world";
 
 // Global playback speed for every transition. 1 = as authored, higher = faster.
 // Phone clips still play in real time; scenes that sync to a clip use clipTime().
-export const SPEED = 1.35;
+export const SPEED = 1.89; // 1.35 x 1.4 (Nishanth: 1.4x faster)
 export const clipTime = (seconds: number) => seconds * SPEED;
 
 export type DeckState = { index: number; count: number; playing: boolean };
