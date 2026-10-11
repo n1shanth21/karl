@@ -4,7 +4,8 @@
 import { MEETUP_SPOTS } from "../config";
 import { db } from "../db";
 import { cancelWant, myStuff, pickResult, saveWant, searchAndShow } from "../flows/buy";
-import { cancelMatch, confirmHappened, respondToMatch, setMeetup } from "../flows/match";
+import { cancelMatch, confirmHappened, setMeetup } from "../flows/match";
+import { counterOffer, makeOffer, respondToOffer } from "../flows/offers";
 import { cancelDraft, confirmDraft, removeListing, updateDraft } from "../flows/sell";
 import type { User } from "../types";
 import { setItem, setStep, startRun } from "./activity";
@@ -129,12 +130,45 @@ export const tools: Tool[] = [
   },
   {
     name: "respond_to_match",
-    description: "A seller answers 'ok to hold it for this buyer?'.",
+    description: "Answer a pending request or price offer: a seller's yes/no to 'ok to hold it?' or to a buyer's offer, or a buyer's yes/no to a seller's counter-price. Yes at an offered price accepts that exact price.",
     parameters: params({ match_id: matchId, accept: { type: "boolean" } }, ["match_id", "accept"]),
     async run(user, args) {
       const id = str(args.match_id);
       if (!id || typeof args.accept !== "boolean") return bad("match_id and accept are required");
-      return { reply: await respondToMatch(user, id, args.accept) };
+      return { reply: await respondToOffer(user, id, args.accept) };
+    },
+  },
+  {
+    name: "make_offer",
+    description:
+      "The buyer wants a different (lower) price than asked, e.g. 'would they take $10?' or 'can you ask the seller for $10'. Sends the offer to the seller. Give listing_id, or index from the results shown. Never promise the buyer a price: the seller may say no or counter.",
+    parameters: params(
+      { listing_id: string("id of the listing"), index: { type: "integer", description: "1-based position in the results shown" }, price_dollars: price("the price the buyer offers, in dollars") },
+      ["price_dollars"],
+    ),
+    async run(user, args) {
+      const offer = cents(args.price_dollars);
+      if (!offer) return bad("price_dollars must be a positive number");
+      const fresh = await db.getUser(user.id); // the caller's `user` may predate the search
+      const shown = fresh?.state.kind === "choosing_result" ? fresh.state.listingIds : [];
+      const index = Number.isInteger(args.index) ? (args.index as number) : shown.length === 1 ? 1 : undefined;
+      const id = str(args.listing_id) ?? (index ? shown[index - 1] : undefined);
+      const listing = id ? await db.getListing(id) : null;
+      if (!listing) return bad("which item? pass listing_id or the index from the results shown");
+      return { reply: await makeOffer(user, listing, offer) };
+    },
+  },
+  {
+    name: "counter_offer",
+    description:
+      "Answer a price offer or counter-offer with a different price ('how about $15'). Works for sellers answering a buyer's offer and for buyers answering a seller's counter. match_id is in my_stuff. Never promise a price the other side hasn't agreed to.",
+    parameters: params({ match_id: matchId, price_dollars: price("the new price in dollars") }, ["match_id", "price_dollars"]),
+    async run(user, args) {
+      const id = str(args.match_id);
+      const next = cents(args.price_dollars);
+      if (!id || !next) return bad("match_id and a positive price_dollars are required");
+      const reply = await counterOffer(user, id, next);
+      return reply ? { reply } : { reply: "", note: "capped: the user was already told to take the last price or pass; send nothing else" };
     },
   },
   {

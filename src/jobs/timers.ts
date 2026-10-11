@@ -4,6 +4,7 @@
 import { bus } from "../bus";
 import { LIMITS } from "../config";
 import { db } from "../db";
+import { releaseHold } from "../flows/holds";
 
 const MINUTE_MS = 60_000;
 // Only ask "did it happen?" about meetups from the last 12 hours. After a server
@@ -25,9 +26,7 @@ export async function expireHolds(now: Date): Promise<void> {
       const listing = await db.getListing(match.listingId);
       // Never bring back a listing that sold or was removed in the meantime.
       // Do NOT call onListingActivated here: buyers were already pinged when it first went live.
-      if (listing?.status === "held") {
-        await db.updateListing(listing.id, { status: "active" });
-      }
+      await releaseHold(listing); // also puts back the original asking price if a negotiated one was held
       await db.logEvent("hold_expired", { listingId: match.listingId });
       bus.emit("hold_expired", { matchId: match.id });
     } catch (err) {

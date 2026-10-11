@@ -9,7 +9,9 @@ import { LIMITS } from "../config";
 import { db } from "../db";
 import { confirmDraft, draftFromPhoto } from "../flows/sell";
 import { pickResult } from "../flows/buy";
-import { confirmHappened, endDealsForBannedUser, proposeMatch, respondToMatch } from "../flows/match";
+import { parseOfferCents, parsePriceCents } from "../flows/format";
+import { confirmHappened, endDealsForBannedUser, proposeMatch } from "../flows/match";
+import { counterOffer, makeOffer, respondToOffer } from "../flows/offers";
 import { routeMessage } from "../flows/relay";
 import { allowMessage, checkImage, isBanned } from "../safety";
 import type { User } from "../types";
@@ -176,6 +178,30 @@ async function handleTapback(user: User, ref: Ref | undefined, emoji: string): P
   clearLastRef(user.id);
 }
 
+/**
+ * Plain-code haggling (no Gemini): a bare price after a request/counter is a counter-offer; "offer 10" or
+ * "can you ask the seller for $10 instead?" after a single result/offer is a buyer offer.
+ */
+async function answerPrice(user: User, text: string): Promise<boolean> {
+  const ref = lastRefTo(user.id);
+  if (!ref) return false;
+  let reply: string | null = null;
+  if (ref.kind === "match_request" || ref.kind === "counter") {
+    const cents = parsePriceCents(text);
+    reply = cents === null ? null : await counterOffer(user, ref.matchId, cents);
+  } else if (ref.kind === "offer" || (ref.kind === "result" && user.state.kind === "choosing_result" && user.state.listingIds.length <= 1)) {
+    const cents = parseOfferCents(text);
+    const listing = cents === null ? null : await db.getListing(ref.listingId);
+    reply = listing && cents! < listing.priceCents ? await makeOffer(user, listing, cents!) : null; // free text never becomes a full-price request
+  }
+  if (reply === null) return false;
+  if (reply) { // "" = a capped counter already re-asked the question (with its own ref)
+    await sendTo(user, reply);
+    clearLastRef(user.id);
+  }
+  return true;
+}
+
 /** A short "yes" / "no" typed right after one of Karl's questions is answered like the matching tapback. */
 async function answerShortcut(user: User, text: string): Promise<boolean> {
   const words = text.trim().split(/\s+/);
@@ -208,7 +234,8 @@ async function answerRef(user: User, ref: Ref, yes: boolean): Promise<string | n
       return listing ? proposeMatch(user, listing) : null; // proposeMatch marks the pinged want matched
     }
     case "match_request":
-      return respondToMatch(user, ref.matchId, yes);
+    case "counter":
+      return respondToOffer(user, ref.matchId, yes);
     case "checkin":
       return confirmHappened(user, ref.matchId, yes);
     case "relay":
@@ -245,9 +272,20 @@ async function answerBatch(user: User, parts: Part[]): Promise<void> {
       }
     }
   }
+  if (text && (await answerPrice(user, text))) return;
   if (text && (await answerShortcut(user, text))) return;
   if (text) return answerText(user, text, parts.findLast((p) => p.matchId)?.matchId);
   await sendTo(user, "i can only read texts and photos right now");
+}
+
+/** "Selling this for 8 dollars" often comes BEFORE the photo. With no caption, reuse that text (last 15 min)
+ *  so the seller's own price wins over Gemini's guess. */
+async function recentSellText(userId: string): Promise<string | undefined> {
+  const since = Date.now() - 15 * 60_000;
+  const recent = (await db.recentMessages(userId, 10)).filter((m) => m.direction === "in" && m.createdAt.getTime() >= since);
+  return recent
+    .reverse()
+    .find((m) => /\b(sell|selling|list|listing|post)\b/i.test(m.text) && /\$\s?\d|\d+\s*(bucks|dollars)\b|\bfor\s+\d+/i.test(m.text))?.text;
 }
 
 async function draftPhoto(user: User, images: Image[], caption: string): Promise<void> {
@@ -261,7 +299,7 @@ async function draftPhoto(user: User, images: Image[], caption: string): Promise
     if (verdict.banned) await endDealsForBannedUser(user.id);
     return;
   }
-  const result = await draftFromPhoto(user, { bytes, mimeType: photo!.mimeType }, caption || undefined);
+  const result = await draftFromPhoto(user, { bytes, mimeType: photo!.mimeType }, caption || (await recentSellText(user.id)));
   await sendTo(user, result.reply, result.ok ? { ref: { kind: "draft", listingId: result.listing.id } } : {});
 }
 

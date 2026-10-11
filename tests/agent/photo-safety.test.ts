@@ -149,3 +149,20 @@ test("explicit photo from a seller with a held match: match cancelled, buyer tol
   expect(sentTo(buyer).slice(before).map((t) => t.text)).toEqual([NEUTRAL]);
   expect(sentTo(buyer).map((t) => t.text).join(" ")).not.toContain("photo");
 });
+
+test("a price said before the photo ('selling this for 8 dollars') is used when the photo has no caption", async () => {
+  const user = await fakeUser("Aarush");
+  spyOn(safety, "checkImage").mockResolvedValue({ action: "allow", banned: false });
+  await sendAs(user, text("Selling this water bottle for 8 dollars")); // agent loop is spied, so this only gets saved
+  await sendAs(user, photo()); // no caption
+  expect(lastTextTo(user)).toContain("$8");
+  expect(spies.draft.mock.calls.at(-1)![2]).toContain("8 dollars");
+});
+
+test("an old or non-selling message with a number is NOT reused as the price", async () => {
+  const user = await fakeUser("Sam");
+  spyOn(safety, "checkImage").mockResolvedValue({ action: "allow", banned: false });
+  await sendAs(user, text("i need 2 lamps for 8 dollars")); // buying, not selling
+  await sendAs(user, photo());
+  expect(lastTextTo(user)).toContain("$15"); // Gemini's estimate
+});

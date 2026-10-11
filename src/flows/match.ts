@@ -6,6 +6,7 @@ import { offeredWant, reopenOfferedWant } from "../agent/notifications";
 import { isSeedUser, sendTo } from "../spectrum/send";
 import type { Listing, Match, User } from "../types";
 import { dollars, itemName } from "./format";
+import { holdAtPrice, keepAgreedPrice, releaseHold } from "./holds";
 import { describeTime, meetupProposal, meetupTimeProblem } from "./meetup";
 
 const NO_MATCH = "i can't find that one. text 'my stuff' to see what's active";
@@ -17,10 +18,10 @@ const relayRef = (matchId: string) => ({ ref: { kind: "relay", matchId } }) as c
 
 const holdText = `${LIMITS.holdMinutes / 60} hrs`;
 
-type Ctx = { match: Match; listing: Listing; buyer: User; seller: User };
+export type Ctx = { match: Match; listing: Listing; buyer: User; seller: User };
 
 /** Load a match plus both people, only if `userId` is on it. */
-async function load(matchId: string, userId: string): Promise<Ctx | null> {
+export async function loadMatch(matchId: string, userId: string): Promise<Ctx | null> {
   const match = await db.getMatch(matchId);
   if (!match || (match.buyerId !== userId && match.sellerId !== userId)) return null;
   const [listing, buyer, seller] = await Promise.all([
@@ -30,9 +31,13 @@ async function load(matchId: string, userId: string): Promise<Ctx | null> {
   ]);
   return listing && buyer && seller ? { match, listing, buyer, seller } : null;
 }
+const load = loadMatch;
 
-/** Buyer wants listing: create match (proposed) and ask the seller. Returns Karl's reply for the buyer. */
-export async function proposeMatch(buyer: User, listing: Listing): Promise<string> {
+/**
+ * Shared start of a buyer's request or offer: guards, then create the match (proposed) and mark the pinged want done.
+ * Returns the new match + seller, or Karl's reply for the buyer when nothing was created.
+ */
+export async function openMatch(buyer: User, listing: Listing): Promise<{ match: Match; seller: User } | string> {
   if (listing.sellerId === buyer.id) return "that's your own listing, nice try";
   if (listing.status !== "active") return `the ${itemName(listing)} just got taken. want me to keep an eye out for another?`;
   const mine = await db.activeMatchesForUser(buyer.id);
@@ -46,10 +51,17 @@ export async function proposeMatch(buyer: User, listing: Listing): Promise<strin
   const wantId = offeredWant(buyer.id, listing.id); // buyer took a ping: that want is done
   if (wantId) await db.updateWantStatus(wantId, "matched");
   if (buyer.state.kind === "choosing_result") await db.updateUser(buyer.id, { state: { kind: "idle" } });
+  return { match, seller };
+}
+
+/** Buyer wants listing: create match (proposed) and ask the seller. Returns Karl's reply for the buyer. */
+export async function proposeMatch(buyer: User, listing: Listing): Promise<string> {
+  const opened = await openMatch(buyer, listing);
+  if (typeof opened === "string") return opened;
   await sendTo(
-    seller,
+    opened.seller,
     `someone wants your ${itemName(listing)} at ${dollars(listing.priceCents)}. ok to hold it for them for ${holdText}? (❤️ or yes)`,
-    { ref: { kind: "match_request", matchId: match.id } },
+    { ref: { kind: "match_request", matchId: opened.match.id } },
   );
   return "asked the seller, i'll text you when they answer";
 }
@@ -58,23 +70,44 @@ export async function proposeMatch(buyer: User, listing: Listing): Promise<strin
 export async function respondToMatch(seller: User, matchId: string, accept: boolean): Promise<string> {
   const ctx = await load(matchId, seller.id);
   if (!ctx || ctx.seller.id !== seller.id || ctx.match.status !== "proposed") return NO_MATCH;
-  const { match, listing, buyer } = ctx;
+  if (accept) return acceptMatch(ctx, "seller");
 
-  if (!accept || listing.status !== "active") {
+  const { match, listing, buyer } = ctx;
+  await db.updateMatch(match.id, { status: "cancelled" });
+  await reopenOfferedWant(buyer.id, listing.id);
+  await sendTo(buyer, `the ${itemName(listing)} isn't available after all, sorry! text me if you want me to look for another one`);
+  return "no worries, it stays listed";
+}
+
+/**
+ * Hold the listing and send meetup options. `by` is who said yes; `agreedCents` (when it differs from the
+ * listing) becomes the listing's price, and both sides are told it.
+ */
+export async function acceptMatch(ctx: Ctx, by: "seller" | "buyer", agreedCents?: number): Promise<string> {
+  const { match, listing, buyer, seller } = ctx;
+  const item = itemName(listing);
+  if (listing.status !== "active") {
     await db.updateMatch(match.id, { status: "cancelled" });
     await reopenOfferedWant(buyer.id, listing.id);
-    await sendTo(buyer, `the ${itemName(listing)} isn't available after all, sorry! text me if you want me to look for another one`);
-    return accept ? `sorry, the ${itemName(listing)} isn't available anymore` : "no worries, it stays listed";
+    if (by === "seller") await sendTo(buyer, `the ${item} isn't available after all, sorry! text me if you want me to look for another one`);
+    return `sorry, the ${item} isn't available anymore`;
   }
 
   const holdExpiresAt = new Date(Date.now() + LIMITS.holdMinutes * 60_000);
   await db.updateMatch(match.id, { status: "accepted", holdExpiresAt });
-  await db.updateListing(listing.id, { status: "held" });
+  await holdAtPrice(listing, agreedCents);
 
   const options = meetupProposal();
-  const item = itemName(listing);
-  await sendTo(buyer, `${seller.firstName ?? "the seller"} said yes, the ${item} is held for you for ${holdText}. ${options}`, relayRef(match.id));
-  return `held the ${item} for ${buyer.firstName ?? "the buyer"} for ${holdText}, numbers stay private, i'll pass messages along. ${options}`;
+  const price = agreedCents === undefined ? "" : dollars(agreedCents);
+  const buyerName = buyer.firstName ?? "the buyer";
+  if (by === "buyer") {
+    await sendTo(seller, `${buyerName} took ${price}! the ${item} is held for them for ${holdText}. ${options}`, relayRef(match.id));
+    return `deal at ${price}, the ${item} is held for you for ${holdText}, numbers stay private, i'll pass messages along. ${options}`;
+  }
+  const said = price ? `said yes to ${price}` : "said yes";
+  await sendTo(buyer, `${seller.firstName ?? "the seller"} ${said}, the ${item} is held for you for ${holdText}. ${options}`, relayRef(match.id));
+  const forWhom = price ? `${buyerName} at ${price}` : buyerName;
+  return `held the ${item} for ${forWhom} for ${holdText}, numbers stay private, i'll pass messages along. ${options}`;
 }
 
 /** Either side picks spot + time → meetup_set; tell the other side. */
@@ -98,7 +131,7 @@ export async function setMeetup(user: User, matchId: string, spot: string, at: D
 async function endMatch(ctx: Ctx, user: User, what: string): Promise<string> {
   const { match, listing, buyer, seller } = ctx;
   await db.updateMatch(match.id, { status: "cancelled" });
-  if (listing.status === "held") await db.updateListing(listing.id, { status: "active" });
+  await releaseHold(listing);
   await reopenOfferedWant(buyer.id, listing.id);
 
   const isBuyer = user.id === buyer.id;
@@ -120,6 +153,7 @@ export async function confirmHappened(user: User, matchId: string, happened: boo
 
   await db.updateMatch(matchId, { status: "completed" });
   await db.updateListing(listing.id, { status: "sold" });
+  keepAgreedPrice(listing.id);
 
   const buyerThanks = `enjoy the ${itemName(listing)}! thanks for using karl`;
   const sellerThanks = `sold! thanks for selling your ${itemName(listing)} through me`;
@@ -149,7 +183,7 @@ export async function endDealsForBannedUser(userId: string): Promise<void> {
   for (const match of await db.activeMatchesForUser(userId)) {
     await db.updateMatch(match.id, { status: "cancelled" });
     const listing = await db.getListing(match.listingId);
-    if (listing?.status === "held") await db.updateListing(listing.id, { status: "active" });
+    await releaseHold(listing);
     if (listing && match.sellerId === userId) await reopenOfferedWant(match.buyerId, listing.id);
 
     const otherId = match.buyerId === userId ? match.sellerId : match.buyerId;

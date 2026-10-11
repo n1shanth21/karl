@@ -11,7 +11,7 @@ export type RelayOutcome = "relayed" | "blocked" | "asked_which" | "not_relay";
 
 const COMMAND = /^(karl\b|cancel\b|help\b|stop\b|my stuff\b|sell\b|looking for\b|search\b)/i;
 const YES_NO_START = /^(yes|yeah|yep|yup|ya|sure|ok|no|nah|nope|did|didn't|it did)\b/i;
-const QUESTION_REFS = ["checkin", "match_request", "offer", "draft"];
+const QUESTION_REFS = ["checkin", "match_request", "offer", "draft", "counter"];
 const SHORT_ANSWER = /^(y|yes|yep|yeah|yup|n|no|nope|ok|okay|sure|👍|👎|❤️|👌)[.!\s]*$/i;
 
 /** Backslash-escape CommonMark specials so the renderer shows the text exactly as typed. */

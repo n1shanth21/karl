@@ -28,7 +28,12 @@ async function offerListing({ wantId, listingId, buyerId }: BusEvents["match_fou
   const photo = await photoAttachment(listing.photoId);
   const ref = { kind: "offer", listingId, wantId } as const; // same ref on photo and text, so a ❤️ on either works
   if (photo) await sendTo(buyer, photo, { logText: `[photo of ${itemName(listing)}]`, ref });
-  await sendTo(buyer, `someone just listed a ${itemName(listing)}, ${dollars(listing.priceCents)}. want it? (❤️ or yes)`, { ref });
+  const max = (await db.getWant(wantId))?.maxPriceCents;
+  const text =
+    max != null && listing.priceCents > max
+      ? `someone just listed a ${itemName(listing)} for ${dollars(listing.priceCents)} (a bit over your ${dollars(max)}). want it, or want me to ask if they'd take ${dollars(max)}? (❤️/yes, or 'offer ${dollars(max)}')`
+      : `someone just listed a ${itemName(listing)}, ${dollars(listing.priceCents)}. want it? (❤️ or yes)`;
+  await sendTo(buyer, text, { ref });
   // Don't clobber a half-finished listing draft: the ❤️ still works through the offer ref.
   if ((await db.getUser(buyer.id))?.state.kind !== "drafting_listing") await db.updateUser(buyer.id, { state: { kind: "choosing_result", listingIds: [listingId] } });
 }

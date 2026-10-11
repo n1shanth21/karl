@@ -9,6 +9,7 @@ import { config, LIMITS } from "../config";
 import { db } from "../db";
 import type { Listing, SearchResult, Want } from "../types";
 import { keywordScore } from "./keyword";
+import { NEAR_MISS_FACTOR } from "./thresholds";
 import { embedListing, matchListingByVector, pingBuyers, searchSemantic, wantSemantic } from "./semantic";
 
 export { backfillEmbeddings } from "./backfill";
@@ -118,7 +119,7 @@ async function keywordCandidates(listing: Listing): Promise<{ want: Want; score:
   for (const want of openWants.values()) {
     const fresh = await db.getWant(want.id);
     if (!fresh || fresh.status !== "open" || fresh.buyerId === listing.sellerId) continue;
-    if (fresh.maxPriceCents != null && listing.priceCents > fresh.maxPriceCents) continue;
+    if (fresh.maxPriceCents != null && listing.priceCents > fresh.maxPriceCents * NEAR_MISS_FACTOR) continue; // near misses still ping
     const score = keywordScore(fresh.queryText, `${listing.title} ${listing.category} ${listing.description}`);
     if (score >= KEYWORD_THRESHOLD) found.push({ want: fresh, score });
   }

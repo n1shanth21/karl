@@ -6,7 +6,7 @@ import { LIMITS } from "../config";
 import { db } from "../db";
 import type { Listing, SearchResult, Want } from "../types";
 import { embedDocuments, embedQuery } from "./embed";
-import { MATCH_MIN_SCORE, SEARCH_MIN_SCORE } from "./thresholds";
+import { MATCH_MIN_SCORE, NEAR_MISS_FACTOR, SEARCH_MIN_SCORE } from "./thresholds";
 
 /** Event type logged each time we proactively ping a buyer (counted for the daily cap). */
 export const PING_EVENT = "match_pinged";
@@ -44,7 +44,9 @@ export async function embedListing(listing: Listing): Promise<number[]> {
 /** Step 2 of activation: find open wants close in meaning to the listing and ping their buyers. */
 export async function matchListingByVector(listing: Listing, vec: number[], now: Date = new Date()): Promise<void> {
   const matches = await db.openWantsByVector(vec, {
-    priceCents: listing.priceCents,
+    // The query keeps wants with max >= priceCents. Passing price / 1.5 (rounded up) lets near misses through
+    // (max * 1.5 >= price) without touching the SQL. No-max wants always pass.
+    priceCents: Math.ceil(listing.priceCents / NEAR_MISS_FACTOR),
     excludeBuyerId: listing.sellerId,
     minScore: MATCH_MIN_SCORE,
   });

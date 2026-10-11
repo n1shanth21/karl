@@ -6,3 +6,7 @@
 // so it is stricter. These replace LIMITS.searchThreshold / LIMITS.matchThreshold (config.ts) in postgres mode.
 export const SEARCH_MIN_SCORE = 0.64; // 0.62 let "lamp oil" (0.624) show up for "drinks cold" in a real run
 export const MATCH_MIN_SCORE = 0.67;
+
+// Proactive pings also reach a buyer when the listing is a bit over their max (price <= max * 1.5), because the
+// buyer may be happy to make an offer. Search stays strict: it only shows listings within the max.
+export const NEAR_MISS_FACTOR = 1.5;

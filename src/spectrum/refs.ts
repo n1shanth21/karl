@@ -7,6 +7,7 @@ export type Ref =
   | { kind: "result"; listingId: string } // one search result shown to a buyer
   | { kind: "offer"; listingId: string; wantId: string } // proactive "someone just listed X, want it?"
   | { kind: "match_request"; matchId: string } // to seller: "someone wants your X, ok to hold?"
+  | { kind: "counter"; matchId: string } // a price offer/counter-offer waiting for the other side's answer
   | { kind: "relay"; matchId: string } // a relayed message or handoff info for this match
   | { kind: "checkin"; matchId: string }; // "did the sale happen?"
 
