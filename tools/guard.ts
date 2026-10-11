@@ -26,6 +26,7 @@ function sh(cmd: string[]): string {
 }
 
 function matches(pattern: string, path: string): boolean {
+  if (pattern === "**") return true;
   return pattern.endsWith("/**") ? path.startsWith(pattern.slice(0, -2)) : path === pattern;
 }
 
