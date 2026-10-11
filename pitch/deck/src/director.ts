@@ -9,6 +9,11 @@ import { World } from "./world";
 //  - jump:  rewind everything to the start, then fast-forward to scene k
 // index = the scene we are in or heading to. -1 = the dark pre-roll before scene 1.
 
+// Global playback speed for every transition. 1 = as authored, higher = faster.
+// Phone clips still play in real time; scenes that sync to a clip use clipTime().
+export const SPEED = 1.35;
+export const clipTime = (seconds: number) => seconds * SPEED;
+
 export type DeckState = { index: number; count: number; playing: boolean };
 
 export class Director {
@@ -35,7 +40,7 @@ export class Director {
     if (a && a.reversed() && a.progress() > 0) {
       // We were going back; turn around and finish the scene we just left.
       this.index++;
-      a.timeScale(1).play();
+      a.timeScale(SPEED).play();
       return this.emit();
     }
     if (a && !a.reversed() && a.progress() < 1) a.progress(1);
@@ -55,7 +60,7 @@ export class Director {
     this.index--;
     if (!tl) return this.emit();
     this.active = tl;
-    tl.timeScale(1.6).reverse(); // backing up is faster than going forward
+    tl.timeScale(SPEED * 1.6).reverse(); // backing up is faster than going forward
     this.emit();
   }
 
@@ -88,7 +93,7 @@ export class Director {
     const prev = this.scenes[i - 1];
     if (prev && prev.texts.length) tl.to(prev.texts, { autoAlpha: 0, y: -16, duration: 0.45, ease: "power2.in", stagger: 0.04 }, 0);
     this.scenes[i].build(this.w, tl);
-    tl.timeScale(1);
+    tl.timeScale(SPEED);
     this.tls[i] = tl;
     return tl;
   }

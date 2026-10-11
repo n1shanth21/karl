@@ -6,6 +6,7 @@ import { canvasPlane, fader, font, roundRect, textLabel } from "../lib/label";
 import { drawableTube, param } from "../lib/motion";
 import { playClip, videoTexture } from "../lib/phone";
 import { COLORS } from "../world";
+import { clipTime } from "../director";
 
 // 4 · The magic moment: want → match. A timeline draws itself, the want waits on it
 // while a day passes, a listing drops in, a line snaps between them, and a phone
@@ -146,7 +147,7 @@ export const magic: Scene = {
     tl.to(w.look, { x: 3.2, duration: 1.6 }, 6.4);
     tl.call(() => { if (!tl.reversed()) playClip("MatchPing"); }, [], 6.9);
     // buzz when the message lands (~2.7 s into the clip)
-    tl.to(P.phone.group.rotation, { z: 0.04, duration: 0.05, yoyo: true, repeat: 9, ease: "none" }, 9.5);
+    tl.to(P.phone.group.rotation, { z: 0.04, duration: 0.05, yoyo: true, repeat: 9, ease: "none" }, 6.9 + clipTime(2.7));
   },
 
   settle() {
