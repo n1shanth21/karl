@@ -14,10 +14,13 @@ export const hasDatabase = Boolean(process.env.DATABASE_URL);
 export const backends = ["memory", "postgres"] as const;
 export type Backend = (typeof backends)[number];
 
-/** `tiger: true` also applies 003_tiger.sql (events hypertable + events_hourly continuous aggregate). */
+/**
+ * `tiger: true` also applies 003_tiger.sql (events hypertable + events_hourly continuous aggregate).
+ * `extras: true` also applies 004_tiger_extras.sql (pgvectorscale diskann indexes + events compression); it implies tiger.
+ */
 export async function makeTestDb(
   kind: Backend,
-  opts: { tiger?: boolean } = {},
+  opts: { tiger?: boolean; extras?: boolean } = {},
 ): Promise<{ db: Db; cleanup(): Promise<void>; sql?: Sql }> {
   if (kind === "memory") return { db: createMemoryDb(), cleanup: async () => {} };
 
@@ -32,7 +35,11 @@ export async function makeTestDb(
   // Safety: if the connection ignored our search_path (e.g. a pooled URL), stop before touching real tables.
   const [{ current }] = await migrator<{ current: string }[]>`select current_schema() as current`;
   if (current !== schema) throw new Error(`test db is on schema "${current}", not ${schema}; refusing to run`);
-  await migrate(migrator, { only: opts.tiger ? ["001_init.sql", "002_vector_index.sql", "003_tiger.sql"] : ["001_init.sql", "002_vector_index.sql"] });
+  const tiger = Boolean(opts.tiger || opts.extras);
+  const files = ["001_init.sql", "002_vector_index.sql"];
+  if (tiger) files.push("003_tiger.sql");
+  if (opts.extras) files.push("004_tiger_extras.sql");
+  await migrate(migrator, { only: files });
   await migrator.end({ timeout: 1 });
   const raw = makeSql({ url, schema, max: 1 }); // for tests that need to poke rows directly (expiry, old events)
   const pgDb = createPostgresDb({ url, schema });
@@ -44,7 +51,7 @@ export async function makeTestDb(
       await pgDb.end();
       await raw.end({ timeout: 1 });
       // A continuous aggregate has background policy jobs: drop the view first, then the schema.
-      if (opts.tiger) await admin.unsafe(`drop materialized view if exists ${schema}.events_hourly`);
+      if (tiger) await admin.unsafe(`drop materialized view if exists ${schema}.events_hourly`);
       await admin.unsafe(`drop schema ${schema} cascade`);
       await admin.end({ timeout: 1 });
     },

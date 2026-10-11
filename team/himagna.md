@@ -49,6 +49,36 @@ Read src/db/types.ts, src/db/memory.ts and db/migrations/001_init.sql first. Sho
 - **D2 done**: Gemini embeddings + pgvector search + proactive want matching, with keyword fallback if Gemini fails. Real run: "need a desk lamp under $20" gets pinged for an IKEA desk lamp (0.758), not for lamp oil; "concert tickets" finds nothing.
 - Tests: `bun test` (postgres tests skip without `DATABASE_URL`). The one live Gemini test is opt-in: `RUN_LIVE_GEMINI=1 bun test tests/data/embed.test.ts`.
 
+## Handoff to Nishanth (everything runs on one machine now)
+
+**State of the data side:** all D1–DX work is merged into `main`. The live Tiger database (the one Railway uses) is migrated (001–004) and seeded with Aayush's demo data: 24 listings + photos, 8 wants, 32 seed users (all `optedOut`, phones `seed:<name>`, never texted).
+
+**`.env` on the demo machine** (values from Himagna privately, never in git):
+```
+DB_MODE=postgres
+DATABASE_URL=...            # Tiger Data connection string
+GEMINI_API_KEY=...
+GEMINI_EMBED_MODEL=gemini-embedding-2
+PUBLIC_BASE_URL=https://karl-production.up.railway.app   # must include https://
+```
+
+**Commands (all from the repo root):**
+| Command | What it does | Safe? |
+|---|---|---|
+| `bun scripts/healthcheck.ts` | Row counts, embedding gaps, Tiger features present. Exit 1 if an active listing has no embedding. | read-only |
+| `bun scripts/backfill.ts` | Embeds any listing/want Gemini missed (backend jobs also do this). | safe, additive |
+| `bun scripts/migrate.ts` | Applies new `db/migrations/*.sql` once each. | safe, additive |
+| `bun scripts/seed.ts` | Adds the seed data (refuses if already seeded). | additive |
+| `bun scripts/reset.ts --yes` | **Wipes the live database** and reseeds. Only for the 6 AM demo reset, and only if the team decides not to keep tonight's real data. | DESTRUCTIVE |
+| `DB_MODE=postgres bun test tests/data` | Data tests against throwaway `test_` schemas. | safe |
+| `bun test` | Full suite. Run it in memory mode only (the default); in postgres mode `tests/agent/smoke.test.ts` writes to the live DB. | memory: safe |
+
+**Open decisions / known issues:**
+1. **Demo risk, the desk fan:** with the seed data, "need a desk lamp under $20" returns *Blue USB desk fan* (0.678) instead of "nothing yet". Either the agent only offers results that really are the requested item, or set that one listing to `removed` before the demo. Judge should text exactly "need a desk lamp under $20"; the seller's listing should keep "desk lamp" in its title (scores 0.69–0.76 vs the 0.67 cutoff).
+2. **6 AM:** keep tonight's real HackNC activity for the dashboard stats, or `bun scripts/reset.ts --yes` back to clean demo data. Run `bun scripts/healthcheck.ts` after either.
+3. **Migration 004 (pgvectorscale DiskANN + events compression) is reviewed and APPLIED** to the live DB (migrations 001–004). `bun scripts/migrate.ts` now prints "nothing to apply". Rollback SQL is in the Opus review notes if ever needed (not expected).
+4. Tiger write-up for judges / Devpost: `db/TIGER.md` (includes read-only SQL to prove each feature live).
+
 ## Requests (things I need from others)
 - **Nishanth (FYI, additive):** `Db` gained `setListingEmbedding`, `setWantEmbedding`, `searchListingsByVector`, `openWantsByVector`, `countEventsSince`. Flows don't need to call them; keep calling `searchListings` / `onListingActivated` / `onWantCreated` from `src/matching`.
 - **Nishanth:** call `onListingActivated(listing)` when a listing goes live for the first time (draft → active) and `onWantCreated(want)` right after `db.createWant`. Without these, nothing gets embedded and search/matching find nothing in postgres mode.
