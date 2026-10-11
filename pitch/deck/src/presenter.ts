@@ -34,7 +34,7 @@ ch.onmessage = (e: MessageEvent<DeckMsg>) => {
   const next = m.scenes[m.index + 1];
   const img = $("previewImg") as HTMLImageElement;
   if (next) {
-    img.src = `${base}stills/${pad(m.index + 2)}-${next.id}.png`;
+    img.src = `${base}stills/${pad(m.index + 2)}-${next.id}.jpg`;
     img.style.visibility = "visible";
     img.onerror = () => { img.style.visibility = "hidden"; };
     $("nextTitle").textContent = `${m.index + 2}. ${next.title} · ${next.move}`;

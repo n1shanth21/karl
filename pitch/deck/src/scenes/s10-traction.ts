@@ -2,15 +2,17 @@ import * as THREE from "three";
 import { Scene, text, textIn } from "../scene";
 import { HUB, P } from "../props";
 import { fader } from "../lib/label";
+import { param } from "../lib/motion";
 import { meaningFade } from "./s09-meaning";
 import { STATS } from "../stats";
 import { COLORS } from "../world";
 
 // 10 · Traction. The camera cranes up out of the embedding cloud while three light
-// pillars rise behind live counters from the dashboard. Move: crane up + pillars rise.
+// beams of light rise between live counters from the dashboard. Move: crane up + beams rise.
 
 export const PILLARS_AT = new THREE.Vector3(HUB.x, HUB.y - 7, HUB.z - 14);
-const XS = [-12.5, 0, 12.5];
+const XS = [-20, -6.2, 6.2, 21.5]; // light beams in the gaps between the numbers
+const HEIGHTS = [9, 13, 11, 8];
 export let pillars: THREE.Mesh[];
 export let pillarFade: { opacity: number };
 let numberEls: HTMLElement[];
@@ -51,7 +53,6 @@ export const traction: Scene = {
   build(w, tl) {
     const { particles } = P;
     const values = [STATS.listedTotal, STATS.soldTotal, STATS.usersTotal];
-    const max = Math.max(...values, 1);
 
     tl.to(meaningFade, { opacity: 0, duration: 0.5 }, 0);
     tl.to(particles.w, { cloud: 0, dust: 1, duration: 2.4, ease: "power2.inOut" }, 0);
@@ -61,14 +62,14 @@ export const traction: Scene = {
     tl.to(w.look, { x: HUB.x, y: HUB.y - 0.5, z: PILLARS_AT.z, duration: 2.6, ease: "power2.inOut" }, 0);
     tl.to(pillarFade, { opacity: 0.32, duration: 0.6 }, 1.2);
     pillars.forEach((p, i) => {
-      tl.to(p.scale, { y: 4 + 10 * Math.sqrt(values[i] / max), duration: 1.8, ease: "power3.out" }, 1.4 + i * 0.15);
+      tl.to(p.scale, { y: HEIGHTS[i], duration: 1.8, ease: "power3.out" }, 1.4 + i * 0.12);
     });
 
     textIn(tl, this.texts[0], 1.0);
     textIn(tl, this.texts.slice(1, 7), 1.6, 0.08);
     numberEls.forEach((el, i) => {
-      const c = { v: 0 };
-      tl.to(c, { v: values[i], duration: 1.8, ease: "power2.out", onUpdate: () => { el.textContent = String(Math.round(c.v)); } }, 1.6 + i * 0.15);
+      const c = param((v) => { el.textContent = String(Math.round(v)); });
+      tl.to(c, { t: values[i], duration: 1.8, ease: "power2.out" }, 1.6 + i * 0.15);
     });
     textIn(tl, this.texts[7], 2.6);
   },

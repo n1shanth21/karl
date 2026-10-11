@@ -3,7 +3,7 @@ import { Scene, text, textIn } from "../scene";
 import { HUB, P } from "../props";
 import { bubble } from "./s03-oneline";
 import { canvasPlane, fader, font, roundRect, textLabel } from "../lib/label";
-import { drawableTube } from "../lib/motion";
+import { drawableTube, param } from "../lib/motion";
 import { playClip, videoTexture } from "../lib/phone";
 import { COLORS } from "../world";
 
@@ -124,17 +124,14 @@ export const magic: Scene = {
 
     // a day passes: the sun arcs over, the sky lifts, the clock runs
     textIn(tl, clockEl, 1.9);
-    const sweep = { p: 0 };
-    tl.to(sweep, {
-      p: 1, duration: 3.2, ease: "none",
-      onUpdate: () => {
-        const a = Math.PI * (1 - sweep.p);
-        sun.position.set(HUB.x + Math.cos(a) * 13, LINE_Y + 1 + Math.sin(a) * 8, HUB.z - 6);
-        sun.visible = sweep.p > 0.001 && sweep.p < 0.999;
-        sky.k = Math.sin(sweep.p * Math.PI) * 0.85;
-        clockEl.textContent = clockText(sweep.p);
-      },
-    }, 2.0);
+    const sweep = param((p) => {
+      const a = Math.PI * (1 - p);
+      sun.position.set(HUB.x + Math.cos(a) * 13, LINE_Y + 1 + Math.sin(a) * 8, HUB.z - 6);
+      sun.visible = p > 0.001 && p < 0.999;
+      sky.k = Math.sin(p * Math.PI) * 0.85;
+      clockEl.textContent = clockText(p);
+    });
+    tl.to(sweep, { t: 1, duration: 3.2, ease: "none" }, 2.0);
 
     // the listing lands and the match line snaps across
     tl.to(listing.position, { y: LISTING.y, duration: 1.0, ease: "bounce.out" }, 5.0);

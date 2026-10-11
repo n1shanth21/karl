@@ -68,6 +68,7 @@ export function createCards(n: number, textures: THREE.Texture[], zFrom: number,
     mesh.position.copy(home);
     mesh.rotation.set((Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.7, (Math.random() - 0.5) * 0.35);
     mesh.visible = false;
+    mesh.userData.card = true;
     cards.push({ mesh, home, seed: Math.random() });
   }
   return cards;

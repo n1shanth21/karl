@@ -3,23 +3,26 @@ import { Scene, text, textIn } from "../scene";
 import { HUB, P } from "../props";
 import { createBubble } from "../lib/bubble";
 import { fader } from "../lib/label";
+import { param } from "../lib/motion";
+
+const well = param(applyWell);
 
 // 3 · Karl in one line. A gravity well pulls every scattered post into one point,
 // and a single iMessage bubble pops out of it. Move: gravity-well pull.
 
-export const well = { p: 0 }; // 0 = cards float free, 1 = all swallowed
+// well.t: 0 = cards float free, 1 = all swallowed
 let core: THREE.Mesh;
 export let bubble: THREE.Group;
 let coreFade: { opacity: number };
 
-function applyWell() {
+function applyWell(p: number) {
   const n = P.cards.length;
   for (let i = 0; i < n; i++) {
     const c = P.cards[i];
     const delay = (i / n) * 0.45 + c.seed * 0.1;
-    const e = THREE.MathUtils.smoothstep(THREE.MathUtils.clamp((well.p - delay) / 0.45, 0, 1), 0, 1);
+    const e = THREE.MathUtils.smoothstep(THREE.MathUtils.clamp((p - delay) / 0.45, 0, 1), 0, 1);
     c.mesh.userData.free = e === 0;
-    if (e === 0) { c.mesh.scale.setScalar(1); continue; }
+    if (e === 0) { c.mesh.position.copy(c.home); c.mesh.scale.setScalar(1); continue; }
     const rel = c.home.clone().sub(HUB);
     const r = Math.hypot(rel.x, rel.y) * (1 - e);
     const a = Math.atan2(rel.y, rel.x) + e * e * 5;
@@ -58,7 +61,7 @@ export const oneLine: Scene = {
   build(w, tl) {
     tl.to(w.camera.position, { x: 0, y: 0, z: HUB.z + 24, duration: 3.2, ease: "power2.inOut" }, 0);
     tl.to(w.look, { x: HUB.x, y: HUB.y, z: HUB.z, duration: 2.4, ease: "power2.inOut" }, 0);
-    tl.to(well, { p: 1, duration: 3.2, ease: "power2.in", onUpdate: applyWell }, 0.1);
+    tl.to(well, { t: 1, duration: 3.2, ease: "power2.in" }, 0.1);
     tl.to(P.particles.look, { opacity: 0.35, duration: 2 }, 0.5);
     // the swallowed posts flash in the core, then one bubble pops out
     tl.to(coreFade, { opacity: 0.9, duration: 0.6 }, 2.4);

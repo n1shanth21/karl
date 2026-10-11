@@ -13,7 +13,7 @@ import { chipsFade, sampleStack, stackFade } from "./s08-built";
 export const FRIDGE = new THREE.Vector3(HUB.x + 2, HUB.y + 0.5, HUB.z + 6);
 const OTHERS: [string, THREE.Vector3][] = [
   ["calc textbook", new THREE.Vector3(-10, 1, -5)],
-  ["bike lock", new THREE.Vector3(9, -4, -7)],
+  ["bike lock", new THREE.Vector3(12, -7, -6)],
   ["futon", new THREE.Vector3(-7, -5, 1)],
   ["desk lamp", new THREE.Vector3(10, 5, -3)],
   ["", new THREE.Vector3(-13, 0, -12)],

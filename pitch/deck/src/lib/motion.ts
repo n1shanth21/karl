@@ -5,6 +5,17 @@ import { World } from "../world";
 // director always builds a scene while the world sits at the previous scene's end
 // state), so every move is a pure function of one tweened number and reverses cleanly.
 
+// A tweenable number whose setter applies it to the world. Prefer this over gsap
+// onUpdate callbacks: jumps and rewinds set values without firing callbacks, but they
+// always go through setters, so the world can never drift out of sync.
+export function param(apply: (v: number) => void, start = 0) {
+  let v = start;
+  return {
+    get t() { return v; },
+    set t(x: number) { v = x; apply(x); },
+  };
+}
+
 // Swing the camera around `center` (keeps distance smooth, adds `turn` radians on the way).
 export function cameraArc(w: World, tl: gsap.core.Timeline, center: THREE.Vector3, to: THREE.Vector3, at: number, duration: number, turn = 0.6) {
   const from = w.camera.position.clone().sub(center);
@@ -15,20 +26,14 @@ export function cameraArc(w: World, tl: gsap.core.Timeline, center: THREE.Vector
   let dTheta = s1.theta - s0.theta;
   if (dTheta > Math.PI) dTheta -= Math.PI * 2;
   if (dTheta < -Math.PI) dTheta += Math.PI * 2;
-  const p = { t: 0 };
   const s = new THREE.Spherical();
-  tl.to(p, {
-    t: 1,
-    duration,
-    ease: "power2.inOut",
-    onUpdate: () => {
-      const k = p.t;
-      s.radius = THREE.MathUtils.lerp(s0.radius, s1.radius, k);
-      s.phi = THREE.MathUtils.lerp(s0.phi, s1.phi, k);
-      s.theta = s0.theta + dTheta * k + Math.sin(k * Math.PI) * turn;
-      w.camera.position.setFromSpherical(s).add(center);
-    },
-  }, at);
+  const p = param((k) => {
+    s.radius = THREE.MathUtils.lerp(s0.radius, s1.radius, k);
+    s.phi = THREE.MathUtils.lerp(s0.phi, s1.phi, k);
+    s.theta = s0.theta + dTheta * k + Math.sin(k * Math.PI) * turn;
+    w.camera.position.setFromSpherical(s).add(center);
+  });
+  tl.to(p, { t: 1, duration, ease: "power2.inOut" }, at);
 }
 
 // A glowing tube along a curve that can "draw itself" (tween .draw from 0 to 1).

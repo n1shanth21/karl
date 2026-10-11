@@ -16,35 +16,42 @@ export function createPacket(raw: PacketLook, masked: PacketLook) {
   group.add(plane.mesh);
   group.visible = false;
   let lastKey = "";
-  const state = { mask: 0, red: 0 };
+  let mask = 0, red = 0;
 
   const paint = () => {
     // redraw only when what's visible actually changes
-    const step = Math.round(state.mask * 12);
-    const key = `${step}|${state.red > 0.5}`;
+    const step = Math.round(mask * 12);
+    const key = `${step}|${red > 0.5}`;
     if (key === lastKey) return;
     lastKey = key;
     plane.redraw((ctx, cw, ch) => {
-      const red = state.red > 0.5;
-      ctx.fillStyle = red ? "#FF6B6B" : "#4B9CD3";
+      const isRed = red > 0.5;
+      ctx.fillStyle = isRed ? "#FF6B6B" : "#4B9CD3";
       roundRect(ctx, 0, 0, cw, ch, 36);
       ctx.fill();
       ctx.fillStyle = "#fff";
       let top = raw.from ?? "";
       let bold = false;
-      if (state.mask >= 1 && masked.label) { top = masked.label; bold = true; }
-      else if (state.mask > 0 && raw.from) {
+      if (mask >= 1 && masked.label) { top = masked.label; bold = true; }
+      else if (mask > 0 && raw.from) {
         // scramble the number while it passes through Karl, then drop it
         top = raw.from.replace(/\d/g, () => DIGITS[Math.floor(Math.random() * 10)]);
-        ctx.globalAlpha = 1 - state.mask * 0.7;
+        ctx.globalAlpha = 1 - mask * 0.7;
       }
       ctx.font = bold ? font(700, 34) : font(500, 28);
       ctx.fillText(top, 30, 52);
       ctx.globalAlpha = 1;
       ctx.font = font(600, 40);
-      ctx.fillText(state.mask >= 1 ? masked.body : raw.body, 30, 112);
+      ctx.fillText(mask >= 1 ? masked.body : raw.body, 30, 112);
     });
   };
+  // tween state.mask / state.red; the setters repaint
+  const state = {
+    get mask() { return mask; },
+    set mask(v: number) { mask = v; paint(); },
+    get red() { return red; },
+    set red(v: number) { red = v; paint(); },
+  };
   paint();
-  return { group, state, paint };
+  return { group, state };
 }

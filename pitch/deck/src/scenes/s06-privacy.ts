@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { Scene, text, textIn } from "../scene";
 import { HUB, P } from "../props";
-import { cameraArc, along, drawableTube } from "../lib/motion";
+import { cameraArc, along, drawableTube, param } from "../lib/motion";
 import { createPacket } from "../lib/packet";
 import { fader, textLabel } from "../lib/label";
 import { playClip, videoTexture } from "../lib/phone";
@@ -19,7 +19,7 @@ export const ROUTE_TO_SELLER = [new THREE.Vector3(BUYER.x + 3.2, 3.6, HUB.z + 0.
 export let wires: ReturnType<typeof drawableTube>[];
 export let nodesFade: { opacity: number }; // node labels
 let packet: ReturnType<typeof createPacket>;
-const trip = { u: 0 };
+const trip = param((u) => along(ROUTE_TO_SELLER, u, packet.group.position));
 
 export const privacy: Scene = {
   id: "privacy",
@@ -78,8 +78,8 @@ export const privacy: Scene = {
 
     // the message travels buyer → Karl → seller; the number dissolves at Karl
     tl.to(packet.group, { visible: true, duration: 0.01 }, 2.9);
-    tl.to(trip, { u: 1, duration: 3.4, ease: "power1.inOut", onUpdate: () => void along(ROUTE_TO_SELLER, trip.u, packet.group.position) }, 2.9);
-    tl.to(packet.state, { mask: 1, duration: 0.8, ease: "none", onUpdate: packet.paint }, 4.2);
+    tl.to(trip, { t: 1, duration: 3.4, ease: "power1.inOut" }, 2.9);
+    tl.to(packet.state, { mask: 1, duration: 0.8, ease: "none" }, 4.2);
     tl.fromTo(logo.group.scale, { x: NODE_SCALE, y: NODE_SCALE, z: NODE_SCALE }, { x: NODE_SCALE * 1.15, y: NODE_SCALE * 1.15, z: NODE_SCALE * 1.15, duration: 0.25, yoyo: true, repeat: 1, immediateRender: false }, 4.3);
     tl.call(() => { if (!tl.reversed()) playClip("MaskedRelay"); }, [], 5.4);
     textIn(tl, this.texts[1], 5.0);

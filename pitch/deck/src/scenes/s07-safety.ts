@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { Scene, text, textIn } from "../scene";
 import { HUB, P } from "../props";
-import { along } from "../lib/motion";
+import { along, param } from "../lib/motion";
 import { createPacket } from "../lib/packet";
 import { fader, textLabel } from "../lib/label";
 import { playClip, videoTexture } from "../lib/phone";
@@ -21,9 +21,9 @@ let shards: THREE.Points;
 let headsUp: THREE.Mesh;
 export let headsUpFade: { opacity: number };
 export let blockedFade: { opacity: number };
-const warnTrip = { u: 0 };
-const blockTrip = { u: 0 };
-const burst = { k: 0 };
+const warnTrip = param((u) => along(ROUTE_TO_BUYER, u, warnPacket.group.position));
+const blockTrip = param((u) => along(ROUTE_TO_BUYER, u, blockPacket.group.position));
+const burst = param((k) => applyBurst(k));
 let shardDirs: Float32Array;
 
 export const safety: Scene = {
@@ -85,9 +85,9 @@ export const safety: Scene = {
 
     // 1) pay-first message: scanned, turns red, buyer gets a heads up
     tl.to(warnPacket.group, { visible: true, duration: 0.01 }, 1.2);
-    tl.to(warnTrip, { u: 1, duration: 3.4, ease: "power1.inOut", onUpdate: () => void along(ROUTE_TO_BUYER, warnTrip.u, warnPacket.group.position) }, 1.2);
+    tl.to(warnTrip, { t: 1, duration: 3.4, ease: "power1.inOut" }, 1.2);
     pulse(tl, 2.4);
-    tl.to(warnPacket.state, { mask: 1, red: 1, duration: 0.5, ease: "none", onUpdate: warnPacket.paint }, 2.6);
+    tl.to(warnPacket.state, { mask: 1, red: 1, duration: 0.5, ease: "none" }, 2.6);
     tl.call(() => {
       // swap the buyer's screen to the warning clip going forward, back to the match clip going back
       const forward = !tl.reversed();
@@ -100,12 +100,12 @@ export const safety: Scene = {
 
     // 2) a phone number: shattered at Karl
     tl.to(blockPacket.group, { visible: true, duration: 0.01 }, 5.6);
-    tl.to(blockTrip, { u: 0.5, duration: 1.6, ease: "power1.in", onUpdate: () => void along(ROUTE_TO_SELLER.slice().reverse(), blockTrip.u, blockPacket.group.position) }, 5.6);
+    tl.to(blockTrip, { t: 0.5, duration: 1.6, ease: "power1.in" }, 5.6);
     tl.to(ringMat.color, { r: COLORS.block.r, g: COLORS.block.g, b: COLORS.block.b, duration: 0.2 }, 6.6);
     pulse(tl, 6.8);
-    tl.to(blockPacket.state, { red: 1, duration: 0.1, onUpdate: blockPacket.paint }, 7.0);
+    tl.to(blockPacket.state, { red: 1, duration: 0.1 }, 7.0);
     tl.to(blockPacket.group.scale, { x: 0.001, y: 0.001, z: 0.001, duration: 0.15, ease: "power2.in" }, 7.2);
-    tl.to(burst, { k: 1, duration: 1.4, ease: "power2.out", onUpdate: applyBurst }, 7.25);
+    tl.to(burst, { t: 1, duration: 1.4, ease: "power2.out" }, 7.25);
     tl.to(blockedFade, { opacity: 1, duration: 0.3 }, 7.3);
     textIn(tl, this.texts[2], 7.5);
   },
@@ -123,9 +123,8 @@ function pulse(tl: gsap.core.Timeline, at: number) {
   tl.fromTo(ringMat, { opacity: 0.9 }, { opacity: 0, duration: 1.4, ease: "power1.in", immediateRender: false }, at);
 }
 
-function applyBurst() {
+function applyBurst(k: number) {
   const pos = shards.geometry.getAttribute("position") as THREE.BufferAttribute;
-  const k = burst.k;
   const start = along(ROUTE_TO_SELLER, 0.5);
   for (let i = 0; i < pos.count; i++) {
     pos.setXYZ(i, start.x + shardDirs[i * 3] * k, start.y + shardDirs[i * 3 + 1] * k - k * k * 1.5, start.z + shardDirs[i * 3 + 2] * k);

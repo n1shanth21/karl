@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { Scene, text, textIn } from "../scene";
 import { HUB, P } from "../props";
 import { fader, textLabel } from "../lib/label";
+import { param } from "../lib/motion";
 import { nodesFade, wires } from "./s06-privacy";
 import { blockedFade, headsUpFade } from "./s07-safety";
 import { COLORS } from "../world";
@@ -10,13 +11,13 @@ import { COLORS } from "../world";
 // iPhone → Photon Spectrum → Karl server (modules orbiting) → Gemini + Tiger Data.
 // Move: exploded view.
 
-type Layer = { name: string; sub: string; y: number; x: number; w: number; labelSide: "left" | "below" };
+type Layer = { name: string; sub: string; y: number; x: number; w: number; labelSide: "left" | "right" };
 const LAYERS: Layer[] = [
   { name: "iPhone", sub: "iMessage, no app", y: 6.4, x: 0, w: 12, labelSide: "left" },
   { name: "Photon Spectrum", sub: "real iMessage in and out", y: 3.2, x: 0, w: 12, labelSide: "left" },
   { name: "Karl server", sub: "Bun + TypeScript + Hono · Railway", y: 0, x: 0, w: 12, labelSide: "left" },
-  { name: "Gemini", sub: "vision · tool calls · embeddings", y: -3.6, x: -3.1, w: 5.8, labelSide: "below" },
-  { name: "Tiger Data", sub: "Postgres · pgvector · Timescale", y: -3.6, x: 3.1, w: 5.8, labelSide: "below" },
+  { name: "Gemini", sub: "vision · tool calls · embeddings", y: -3.6, x: -3.1, w: 5.8, labelSide: "left" },
+  { name: "Tiger Data", sub: "Postgres · pgvector · Timescale", y: -3.6, x: 3.1, w: 5.8, labelSide: "right" },
 ];
 const DEPTH = 5;
 const TILT = 0.32;
@@ -26,11 +27,10 @@ let stack: THREE.Group;
 let layerGroups: THREE.Group[];
 export let stackFade: { opacity: number };
 export let chipsFade: { opacity: number };
-const explode = { e: 0 };
-
-function applyExplode() {
-  LAYERS.forEach((l, i) => layerGroups[i].position.set(l.x * (0.3 + 0.7 * explode.e), l.y * explode.e, 0));
+function applyExplode(e: number) {
+  LAYERS.forEach((l, i) => layerGroups[i].position.set(l.x * (0.3 + 0.7 * e), l.y * e, 0));
 }
+const explode = param(applyExplode);
 
 export const built: Scene = {
   id: "built",
@@ -60,21 +60,21 @@ export const built: Scene = {
 
       const label = textLabel([l.name, l.sub], { size: 76, weight: 500, bold: 1, color: "#fff" });
       label.mesh.rotation.x = -TILT; // face the audience
-      if (l.labelSide === "left") label.mesh.position.set(-l.w / 2 - 0.6 - label.width / 2, 0.1, DEPTH / 2);
-      else label.mesh.position.set(0, -1.1, DEPTH / 2 + 0.3);
-      if (l.labelSide === "below") label.mesh.scale.setScalar(0.75);
+      const side = l.labelSide === "left" ? -1 : 1;
+      label.mesh.position.set(side * (l.w / 2 + 0.6 + label.width / 2), 0.1, DEPTH / 2);
       g.add(label.mesh);
       mats.push(label.mat);
       stack.add(g);
       return g;
     });
     stackFade = fader(mats, 0);
-    applyExplode();
+    applyExplode(0);
 
     // the server's modules orbit it
     const chips = ["agent", "flows", "safety", "matching", "jobs"].map((name) => {
       const c = textLabel([name], { size: 60, weight: 600, bg: "#4B9CD3", pad: 20 });
       layerGroups[2].add(c.mesh);
+      c.mesh.userData.ambient = true; // orbits on its own clock
       return c;
     });
     chipsFade = fader(chips.map((c) => c.mat), 0);
@@ -105,7 +105,7 @@ export const built: Scene = {
     tl.to(w.camera.position, { x: HUB.x - 3, y: HUB.y + 4, z: HUB.z + 31, duration: 2.2 }, 0);
     tl.to(w.look, { x: HUB.x + 0.4, y: HUB.y + 1.6, z: HUB.z, duration: 2.2 }, 0);
     tl.to(stackFade, { opacity: 1, duration: 0.8 }, 0.6);
-    tl.to(explode, { e: 1, duration: 2.0, ease: "power3.inOut", onUpdate: applyExplode }, 1.0);
+    tl.to(explode, { t: 1, duration: 2.0, ease: "power3.inOut" }, 1.0);
     tl.to(chipsFade, { opacity: 1, duration: 0.6 }, 2.6);
     textIn(tl, this.texts[0], 0.8);
     textIn(tl, this.texts.slice(1), 3.0, 0.3);
