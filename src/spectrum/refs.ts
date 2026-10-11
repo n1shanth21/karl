@@ -11,7 +11,9 @@ export type Ref =
   | { kind: "relay"; matchId: string } // a relayed message or handoff info for this match
   | { kind: "checkin"; matchId: string } // "did the sale happen?"
   | { kind: "bid"; listingId: string; wantId: string } // to seller: "someone wants one around $15 (you're at $30). offer them a price?"
-  | { kind: "still_active"; listingId?: string; wantId?: string }; // "still selling X? / still looking for X?"
+  | { kind: "still_active"; listingId?: string; wantId?: string } // "still selling X? / still looking for X?"
+  | { kind: "availability"; matchId: string } // "when are you free to meet?" (any text reply = their availability)
+  | { kind: "meetup_slot"; matchId: string; start: string; spot: string }; // "the Pit tomorrow 2pm? 👍 or 👎" (start = ISO)
 
 const refs = new Map<string, Ref>();
 

@@ -262,6 +262,9 @@ async function answerRef(user: User, ref: Ref, yes: boolean): Promise<string | n
       return confirmHappened(user, ref.matchId, yes);
     case "relay":
       return null;
+    case "availability": // TODO(wave: scheduling flow)
+    case "meetup_slot": // TODO(wave: scheduling flow)
+      return null;
     case "bid": // a seller's yes/no to "someone wants one around $15" (a price is handled in answerPrice)
       return answerBid(user, ref, { yes });
     case "still_active": {
