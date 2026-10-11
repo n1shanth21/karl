@@ -6,6 +6,7 @@ import { registerNotifications } from "./agent/notifications";
 import { config } from "./config";
 import { startHttp } from "./http";
 import { startJobs } from "./jobs";
+import { unseed } from "./maintenance/unseed";
 import { backfillEmbeddings } from "./matching";
 import { startSpectrum } from "./spectrum/client";
 import { handleInbound } from "./spectrum/inbound";
@@ -18,6 +19,8 @@ startJobs();
 registerNotifications();
 registerLifecycle();
 // Embed anything that missed it while Gemini was down (not awaited: texts must start flowing).
+// One-off cleanup: set UNSEED_ON_BOOT=1 on Railway, let it restart once, then delete the variable.
+if (process.env.UNSEED_ON_BOOT === "1") unseed().catch((e) => console.error("[karl] unseed failed", e));
 if (config.dbMode === "postgres") backfillEmbeddings().catch((e) => console.error("[karl] backfill failed", e));
 
 const app = await startSpectrum();
