@@ -12,6 +12,7 @@ export type Item =
       text?: string;
       label?: string; // bold relay label, e.g. "Maya · mini fridge"
       image?: string; // file in public/
+      imageH?: number; // displayed photo height in points (default 186); the scroll math uses it
       tapback?: number; // frame when "me" hearts this message
     };
 
@@ -47,10 +48,12 @@ export const Thread: React.FC<{ items: Item[] }> = ({ items }) => {
 const LIST_TOP = 136;
 const LIST_H = PT_H - LIST_TOP - 90; // space between the header and the input bar
 
+const IMAGE_H = 186; // default photo height (landscape photos like the mini fridge)
+
 // Estimated height of an item in points (no DOM measuring in a render).
 function heightOf(it: Item) {
   if (it.kind === "divider") return 40;
-  if (it.image) return 192;
+  if (it.image) return (it.imageH ?? IMAGE_H) + 6;
   const charsPerLine = 25;
   const lines = Math.ceil((it.text ?? "").length / charsPerLine) + (it.label ? 1 : 0);
   return lines * 27 + 16 + 6 + (it.tapback !== undefined ? 14 : 0);
@@ -100,7 +103,7 @@ const Bubble: React.FC<{ item: Extract<Item, { kind: "msg" }>; tail: boolean }> 
         }}
       >
         {item.image ? (
-          <Img src={staticFile(item.image)} style={{ width: 250, borderRadius: 18, display: "block" }} />
+          <Img src={staticFile(item.image)} style={{ width: 250, height: item.imageH ?? IMAGE_H, objectFit: "cover", borderRadius: 18, display: "block" }} />
         ) : (
           <div style={{ background: color, borderRadius: 20, padding: "8px 14px", fontSize: TEXT_SIZE, lineHeight: 1.3, letterSpacing: -0.2 }}>
             {item.label ? <div style={{ fontWeight: 700 }}>{item.label}</div> : null}

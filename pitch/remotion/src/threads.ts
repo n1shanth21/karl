@@ -28,7 +28,7 @@ export const THREADS: Record<string, Item[]> = {
     { kind: "msg", at: -1, from: "me", text: "need a desk lamp under $20" },
     { kind: "msg", at: -1, from: "karl", text: SAVED },
     { kind: "divider", at: 40, text: "Today 11:03 AM" },
-    { kind: "msg", at: 80, from: "karl", image: "desk-lamp.jpg" },
+    { kind: "msg", at: 80, from: "karl", image: "desk-lamp.jpg", imageH: 300 },
     { kind: "msg", at: 130, from: "karl", text: "someone just listed a desk lamp, $15, good condition. want it? (❤️ or yes)", tapback: 210 },
   ],
 
@@ -64,7 +64,7 @@ export const THREADS: Record<string, Item[]> = {
     { kind: "msg", at: 30, from: "me", text: "need a desk lamp under $20" },
     { kind: "msg", at: 90, from: "karl", text: SAVED },
     { kind: "divider", at: 170, text: "Today 11:03 AM" },
-    { kind: "msg", at: 210, from: "karl", image: "desk-lamp.jpg" },
+    { kind: "msg", at: 210, from: "karl", image: "desk-lamp.jpg", imageH: 300 },
     { kind: "msg", at: 260, from: "karl", text: "someone just listed a desk lamp, $15, good condition. want it? (❤️ or yes)" },
     { kind: "msg", at: 340, from: "me", text: "yes!" },
     { kind: "msg", at: 400, from: "karl", text: "asked the seller, i'll text you when they answer" },
