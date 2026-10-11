@@ -4,5 +4,5 @@ import { defineConfig } from "vite";
 export default defineConfig({
   base: "./",
   server: { fs: { allow: [".."] } }, // brand tokens live in ../brand
-  build: { assetsInlineLimit: 0, chunkSizeWarningLimit: 2000 },
+  build: { target: "es2022", assetsInlineLimit: 0, chunkSizeWarningLimit: 2000 },
 });

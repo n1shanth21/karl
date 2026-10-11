@@ -6,6 +6,7 @@ import { World } from "./world";
 //  - build() adds the transition INTO this scene to `tl`, starting from the previous
 //    scene's end state. Use gsap .to()/.fromTo() so the timeline can run backwards.
 //    Avoid tl.set() at time 0; put instant changes at 0.01 so reversing restores them.
+//    fromTo() on 3D objects needs immediateRender: false, or it jumps them at build time.
 export interface Scene {
   id: string;
   title: string; // shown in the presenter view
@@ -14,6 +15,8 @@ export interface Scene {
   texts: HTMLElement[]; // this scene's overlay text; faded out when the next scene starts
   init(w: World): void;
   build(w: World, tl: gsap.core.Timeline): void;
+  // Optional: put videos etc. into this scene's end state (used after jumps and skips).
+  settle?(w: World): void;
 }
 
 // Make a text block on the 1920x1080 stage. `cls` is one of: hero, title, line, small (+ mono).

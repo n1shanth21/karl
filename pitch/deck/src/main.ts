@@ -2,10 +2,15 @@ import "./styles.css";
 import { createWorld } from "./world";
 import { Director } from "./director";
 import { bindControls } from "./controls";
-import { TEST_SCENES } from "./scenes/test";
+import { createProps } from "./props";
+import { SCENES } from "./scenes";
+
+// Canvas labels need the bundled font loaded before they are drawn.
+await Promise.all([500, 600, 700].map((wt) => document.fonts.load(`${wt} 40px "Inter Variable"`)));
 
 const world = createWorld();
-const director = new Director(world, TEST_SCENES);
+createProps(world);
+const director = new Director(world, SCENES);
 bindControls(director, world);
 
 // Handy in the browser console while building scenes: deck.jump(3), deck.next() ...

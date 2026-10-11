@@ -62,6 +62,9 @@ html, body {
 .t.small { font-size: var(--karl-size-small); font-weight: 500; color: var(--karl-muted); letter-spacing: -0.01em; }
 .t.mono { font-family: "JetBrains Mono", var(--karl-font-mono); letter-spacing: 0; }
 .t .blue { color: var(--karl-blue); }
+.t .red { color: var(--karl-block); }
+.t .green { color: var(--karl-ok); }
+.t b { font-weight: 700; }
 
 #black {
   position: fixed;

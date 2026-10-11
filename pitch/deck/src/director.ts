@@ -63,6 +63,7 @@ export class Director {
     const a = this.active;
     if (!a) return;
     a.progress(a.reversed() ? 0 : 1);
+    if (!a.reversed() && this.index >= 0) this.scenes[this.index].settle?.(this.w);
     this.emit();
   }
 
@@ -75,6 +76,7 @@ export class Director {
     this.tls = [];
     // Fast-forward scene by scene so each timeline records the right starting values.
     for (let i = 0; i <= k; i++) this.build(i).progress(1);
+    for (let i = 0; i <= k; i++) this.scenes[i].settle?.(this.w);
     this.index = k;
     this.active = null;
     this.emit();
