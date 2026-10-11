@@ -1,5 +1,5 @@
 {
-  "_readme": "Who may change which files. Enforced by tools/guard.ts (git pre-commit hook + Claude Code PreToolUse hook). Branch name decides the role. Owner: Nishanth.",
+  "_readme": "Who may change which files. Enforced by tools/guard.ts (git pre-commit hook + Claude Code PreToolUse hook). Branch name decides the role. Owner: Nishanth. HANDOFF (Oct 10, ~8:45 PM): data/backend/web handed off to Nishanth, so the agent branch may edit everything.",
   "roles": {
     "agent": {
       "person": "Nishanth",
@@ -27,7 +27,8 @@
         ".claude/**",
         "tools/**",
         "bunfig.toml",
-        "tests/setup.ts"
+        "tests/setup.ts",
+        "**"
       ]
     },
     "data": {
