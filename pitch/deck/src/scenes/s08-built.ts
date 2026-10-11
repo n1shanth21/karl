@@ -37,7 +37,7 @@ export const built: Scene = {
   title: "How it's built",
   move: "exploded view",
   notes:
-    "Photon Spectrum gives us real iMessage in and out.\n\nGemini does three jobs: reads item photos, decides what you want and calls our tools, and makes embeddings.\n\nTiger Data holds listings, wants and matches: Postgres + pgvector, plus a Timescale hypertable and continuous aggregate for live stats.\n\nDesign rule: Gemini only picks the tool. It never writes SQL, never sends messages, never routes relays.\n\nFour of us on four branches, built against shared contracts so nobody was blocked.",
+    "Photon Spectrum gives us real iMessage in and out.\n\nGemini does three jobs: reads item photos, decides what you want and calls our tools, and makes embeddings.\n\nTiger Data holds listings, wants and matches: Postgres + pgvector, plus a Timescale hypertable and continuous aggregate for live stats.\n\nDesign rule: rules first. Plain code handles anything with real consequences (prices, confirmations, relaying), and Gemini only handles what rules can't: photos, free-form requests, and the occasional message where it's unclear who it's for. It never writes SQL and never touches money.\n\nFour of us on four branches, built against shared contracts so nobody was blocked.",
   texts: [],
 
   init(w) {
@@ -90,7 +90,7 @@ export const built: Scene = {
     this.texts = [
       text(w, "How it's built", { x: 140, y: 80, cls: "title" }),
       text(w, "Gemini picks the tool. Plain code does the rest.", { x: 140, y: 905, cls: "line" }),
-      text(w, "the AI never writes SQL, never sends texts, never routes relays", { x: 142, y: 980, cls: "small" }),
+      text(w, "rules-first routing · the AI never writes SQL or moves money", { x: 142, y: 980, cls: "small" }),
     ];
   },
 

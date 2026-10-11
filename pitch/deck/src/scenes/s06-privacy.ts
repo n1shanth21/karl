@@ -26,7 +26,7 @@ export const privacy: Scene = {
   title: "Masked relay",
   move: "orbit + travelling paths",
   notes:
-    "When you match, buyer and seller never get each other's number.\n\nEach person only ever texts Karl. Karl forwards the message with a bold label, like “Maya · mini fridge”.\n\nThis started as a constraint (our iMessage provider can't make group chats) and became a feature: numbers stay private. Routing is plain code, not the AI.",
+    "When you match, buyer and seller never get each other's number.\n\nEach person only ever texts Karl. Karl forwards the message with a bold label, like “Maya · mini fridge”.\n\nThis started as a constraint (our iMessage provider can't make group chats) and became a feature: numbers stay private. Routing is rules-first: plain code handles the predictable messages, and Gemini only steps in when it's unclear whether a message is for Karl or the other person.",
   texts: [],
 
   init(w) {

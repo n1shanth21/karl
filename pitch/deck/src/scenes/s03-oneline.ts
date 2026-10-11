@@ -36,7 +36,7 @@ export const oneLine: Scene = {
   title: "Karl in one line",
   move: "gravity well",
   notes:
-    "So we built Karl. It's just a phone number.\n\nNo app. No browsing. You text it what you're selling or what you want.\n\nFacebook Marketplace makes you search. Karl texts you when the thing you want shows up.",
+    "So we built Karl. You text him what you're selling or what you want, once.\n\nThen he does the work: he remembers it, finds the other person, negotiates, and sets up the meetup.\n\nFacebook Marketplace makes you search. Karl texts you when the thing you want shows up.",
   texts: [],
 
   init(w) {
@@ -53,7 +53,7 @@ export const oneLine: Scene = {
     w.tick((t) => { bubble.rotation.y = Math.sin(t * 0.6) * 0.12; });
 
     this.texts = [
-      text(w, "Just text. No app. No browsing.", { x: 960, y: 120, cls: "title", align: "center" }),
+      text(w, "Tell Karl once. He does the looking.", { x: 960, y: 120, cls: "title", align: "center" }),
       text(w, "Karl texts <i>you</i> when the thing you want shows up.", { x: 960, y: 900, cls: "line", align: "center" }),
     ];
   },
