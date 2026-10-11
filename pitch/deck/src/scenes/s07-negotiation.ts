@@ -45,6 +45,7 @@ export const negotiation: Scene = {
   id: "negotiation",
   title: "Karl haggles for you",
   move: "ping-pong packets + deal pop",
+  speed: 0.75, // plays slower than the rest so the offer, counter and deal can be followed
   notes:
     "Karl doesn't just connect people. He negotiates between them.\n\nThe buyer says “ask him for $35.” The seller gets a real offer, and can say yes, no, or just reply with a number to counter. It goes back and forth until someone says yes, and the deal closes at that price.\n\nIt even works after a deal is agreed: “can you ask him for 55” renegotiates. Nothing changes until the other person taps yes.",
   texts: [],

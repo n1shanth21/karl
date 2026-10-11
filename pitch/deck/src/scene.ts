@@ -12,6 +12,7 @@ export interface Scene {
   title: string; // shown in the presenter view
   notes: string; // speaker notes
   move: string; // the kind of transition, so we never repeat one twice in a row
+  speed?: number; // multiplies SPEED for this scene only (below 1 = slower)
   texts: HTMLElement[]; // this scene's overlay text; faded out when the next scene starts
   init(w: World): void;
   build(w: World, tl: gsap.core.Timeline): void;
