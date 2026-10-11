@@ -53,7 +53,7 @@ export async function runAgentTurn(user: User, text: string): Promise<string | n
     console.error(`[agent] FALLBACK (max tool rounds) tools called: ${toolsCalled.join(", ")}`);
     return FALLBACK; // still asking for tools after the last round
   } catch (err) {
-    console.error(`[agent] FALLBACK (error): ${err instanceof Error ? err.message : String(err)}`);
+    console.error(`[agent] FALLBACK (error): ${err instanceof Error ? `${err.name}: ${err.message}` : String(err)}`);
     if (err instanceof Error && err.stack) console.error(err.stack);
     return FALLBACK;
   }

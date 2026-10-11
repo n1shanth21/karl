@@ -42,7 +42,26 @@ const DRAFT_SCHEMA = {
 const VISION_PROMPT =
   "You help UNC Chapel Hill students sell used stuff. Identify the single item for sale in this photo and draft a listing for it.";
 
-async function describeItem(jpeg: Uint8Array, caption?: string): Promise<ListingDraft | null> {
+/** Timeouts/aborts and 429/500/503 are worth one more try; anything else (bad key, bad request) is not. */
+function retryReason(err: unknown): string | number | null {
+  const { name, status } = (err ?? {}) as { name?: string; status?: unknown };
+  if (name === "TimeoutError" || name === "AbortError") return name;
+  return status === 429 || status === 500 || status === 503 ? status : null;
+}
+
+/** Run `attempt` (it must make a fresh request, with a fresh timeout, each call); retry ONCE on a retryable error. */
+export async function withRetry<T>(attempt: () => Promise<T>, label: string): Promise<T> {
+  try {
+    return await attempt();
+  } catch (err) {
+    const reason = retryReason(err);
+    if (reason === null) throw err;
+    console.warn(`[gemini] ${label} retry after ${reason}`);
+    return attempt();
+  }
+}
+
+async function describeItemOnce(jpeg: Uint8Array, caption?: string): Promise<ListingDraft | null> {
   const prompt = caption ? `${VISION_PROMPT}\nThe seller's caption: "${caption}"` : VISION_PROMPT;
   const res = await ai().models.generateContent({
     model: config.geminiModel,
@@ -62,7 +81,7 @@ async function describeItem(jpeg: Uint8Array, caption?: string): Promise<Listing
   };
 }
 
-async function chat(req: { system: string; contents: Content[]; tools: ToolSpec[] }): Promise<Content> {
+async function chatOnce(req: { system: string; contents: Content[]; tools: ToolSpec[] }): Promise<Content> {
   const res = await ai().models.generateContent({
     model: config.geminiModel,
     contents: req.contents,
@@ -84,7 +103,7 @@ const RELEVANT_SCHEMA = {
   required: ["indices"],
 };
 
-async function pickRelevant(request: string, titles: string[]): Promise<number[]> {
+async function pickRelevantOnce(request: string, titles: string[]): Promise<number[]> {
   const list = titles.map((t, i) => `${i}: ${t}`).join("\n");
   const prompt =
     `A buyer texted: "${request}"\nWhich of these listings ARE the item they asked for? Same kind of item only: ` +
@@ -104,7 +123,11 @@ async function pickRelevant(request: string, titles: string[]): Promise<number[]
   return indices.filter((i): i is number => Number.isInteger(i) && i >= 0 && i < titles.length);
 }
 
-const real: GeminiApi = { describeItem, chat, pickRelevant };
+const real: GeminiApi = {
+  describeItem: (jpeg, caption) => withRetry(() => describeItemOnce(jpeg, caption), "describeItem"),
+  chat: (req) => withRetry(() => chatOnce(req), "chat"),
+  pickRelevant: (request, titles) => withRetry(() => pickRelevantOnce(request, titles), "pickRelevant"),
+};
 // Under `bun test` the real API is off limits (bun loads .env, so a missing fake would bill a real call).
 const offline = (name: string) => async (): Promise<never> => {
   throw new Error(`real Gemini ${name}() called from a test: fake it with setGeminiForTests`);

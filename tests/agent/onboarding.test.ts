@@ -101,5 +101,5 @@ test("loop logs FALLBACK (error) when chat throws", async () => {
   } as never);
   runAgentTurn.mockRestore();
   expect(await loop.runAgentTurn(u, "need a lamp")).toBe("my brain glitched for a sec, try that again?");
-  expect(errors.mock.calls.flat().join(" ")).toContain("FALLBACK (error): boom 503");
+  expect(errors.mock.calls.flat().join(" ")).toContain("FALLBACK (error): Error: boom 503");
 });
