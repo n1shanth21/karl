@@ -95,3 +95,14 @@ export async function counterOffer(user: User, matchId: string, cents: number): 
   );
   return `sent your ${dollars(cents)} to ${name(other, "them")}, i'll let you know`;
 }
+
+/**
+ * Seller answers a "bid" notice (someone wants the item around $15, seller asks $30).
+ * yes with no price -> offer the buyer the midpoint; a price -> offer that; no -> politely drop it.
+ * Seller-initiated offer: the BUYER gets "the seller of <item> would do $X (you said $15). deal? (❤️/yes, no, or a price)"
+ * with a {kind:"counter", matchId} ref, so the existing counter flow takes over. Returns Karl's reply to the seller.
+ * TODO(wave: orderbook)
+ */
+export async function answerBid(_seller: User, _bid: { listingId: string; wantId: string }, _answer: { yes: boolean } | { priceCents: number }): Promise<string> {
+  throw new Error("TODO(orderbook): answerBid");
+}

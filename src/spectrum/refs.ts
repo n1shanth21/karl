@@ -9,7 +9,9 @@ export type Ref =
   | { kind: "match_request"; matchId: string } // to seller: "someone wants your X, ok to hold?"
   | { kind: "counter"; matchId: string } // a price offer/counter-offer waiting for the other side's answer
   | { kind: "relay"; matchId: string } // a relayed message or handoff info for this match
-  | { kind: "checkin"; matchId: string }; // "did the sale happen?"
+  | { kind: "checkin"; matchId: string } // "did the sale happen?"
+  | { kind: "bid"; listingId: string; wantId: string } // to seller: "someone wants one around $15 (you're at $30). offer them a price?"
+  | { kind: "still_active"; listingId?: string; wantId?: string }; // "still selling X? / still looking for X?"
 
 const refs = new Map<string, Ref>();
 

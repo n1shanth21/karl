@@ -240,6 +240,9 @@ async function answerRef(user: User, ref: Ref, yes: boolean): Promise<string | n
       return confirmHappened(user, ref.matchId, yes);
     case "relay":
       return null;
+    case "bid": // TODO(wave: conversation): answerBid
+    case "still_active": // TODO(wave: conversation): markStillActive / close
+      return null;
   }
 }
 

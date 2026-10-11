@@ -1,6 +1,7 @@
 // Entry point: one process runs Spectrum (texts), the HTTP server, and the timers.
 // Owner: Nishanth. Other branches never edit this; they export a start function instead.
 
+import { registerLifecycle } from "./agent/lifecycle";
 import { registerNotifications } from "./agent/notifications";
 import { config } from "./config";
 import { startHttp } from "./http";
@@ -15,6 +16,7 @@ console.log(`[karl] booting: messaging=${config.messagingMode} db=${config.dbMod
 startHttp();
 startJobs();
 registerNotifications();
+registerLifecycle();
 // Embed anything that missed it while Gemini was down (not awaited: texts must start flowing).
 if (config.dbMode === "postgres") backfillEmbeddings().catch((e) => console.error("[karl] backfill failed", e));
 

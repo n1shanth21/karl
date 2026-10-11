@@ -13,6 +13,15 @@ export type BusEvents = {
   meetup_checkin_due: { matchId: string };
   // Backend jobs: a saved want hit its expiry -> agent may tell the buyer (optional)
   want_expired: { wantId: string; buyerId: string };
+  // Matching: a bid (want) and an ask (listing) are the same item but far apart on price (ask > 1.5x and <= 3x the
+  // bid). Agent tells BOTH sides, once per pair, so they can try to meet in the middle with offers.
+  spread_found: { wantId: string; listingId: string; buyerId: string; sellerId: string };
+  // Jobs: re-ask "did it happen?" for a meetup nobody confirmed (every 24 h, at most twice).
+  checkin_reminder_due: { matchId: string };
+  // Jobs: an open listing/want has been quiet for 48 h -> ask "still selling / still looking?".
+  stale_check_due: { userId: string; listingId?: string; wantId?: string };
+  // Jobs: two stale checks went unanswered -> it was closed automatically; agent tells the user.
+  stale_auto_closed: { userId: string; listingId?: string; wantId?: string };
 };
 
 type Name = keyof BusEvents;
