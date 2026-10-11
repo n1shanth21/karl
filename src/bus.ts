@@ -22,6 +22,12 @@ export type BusEvents = {
   stale_check_due: { userId: string; listingId?: string; wantId?: string };
   // Jobs: two stale checks went unanswered -> it was closed automatically; agent tells the user.
   stale_auto_closed: { userId: string; listingId?: string; wantId?: string };
+  // Jobs: a meetup_set deal got its check-in + 2 reminders and still wasn't confirmed 24 h later -> closed
+  // automatically (match expired, listing back up, buyer's want reopened); agent tells both sides.
+  deal_auto_closed: { matchId: string };
+  // Jobs: a "proposed" match (request/offer nobody answered) sat for 24 h -> match expired, listing stays up,
+  // buyer's want reopened; agent texts only the side that was waiting.
+  proposal_expired: { matchId: string };
 };
 
 type Name = keyof BusEvents;

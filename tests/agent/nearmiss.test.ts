@@ -38,8 +38,8 @@ test("$14 listing vs a $10 max pings with 'a bit over' wording", async () => {
   expect(lastTextTo(buyer)).toContain("offer $10");
 });
 
-test("$20 listing vs a $10 max (over 1.5x) does not ping", async () => {
-  const buyer = await scenario(1000, 2000);
+test("$40 listing vs a $10 max (over 3x) does not ping", async () => {
+  const buyer = await scenario(1000, 4000);
   expect(found).toEqual([]);
   expect(sentTo(buyer)).toEqual([]);
 });

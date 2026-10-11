@@ -9,8 +9,8 @@ import { config, LIMITS } from "../config";
 import { db } from "../db";
 import type { Listing, SearchResult, Want } from "../types";
 import { keywordScore } from "./keyword";
-import { NEAR_MISS_FACTOR } from "./thresholds";
-import { embedListing, matchListingByVector, pingBuyers, searchSemantic, wantSemantic } from "./semantic";
+import { SPREAD_MAX_FACTOR } from "./thresholds";
+import { embedListing, matchListingByVector, matchWantByVector, routeListingMatches, routeWantMatches, searchSemantic, wantSemantic } from "./semantic";
 
 export { backfillEmbeddings } from "./backfill";
 
@@ -62,18 +62,34 @@ export async function onListingActivated(listing: Listing): Promise<void> {
       }
     }
   }
-  await pingBuyers(listing, await keywordCandidates(listing));
+  await routeListingMatches(listing, await keywordCandidates(listing));
 }
 
 /** Call right after a want is saved, so future listings can match it. */
 export async function onWantCreated(want: Want): Promise<void> {
   openWants.set(want.id, want);
   if (semanticOn) {
-    await wantSemantic(want).catch((err) => {
-      console.error("[matching] embedding want failed, retrying in 60s", err);
-      retryLater(() => wantSemantic(want));
-    });
+    try {
+      return await matchWantByVector(want, await wantSemantic(want));
+    } catch (err) {
+      console.error("[matching] embedding/matching want failed, retrying in 60s", err);
+      retryLater(async () => void (await wantSemantic(want)));
+    }
   }
+  await routeWantMatches(want, await keywordListings(want));
+}
+
+/** Listings (seen by this process) that match a new want by keywords. Price filtering happens in routeWantMatches. */
+async function keywordListings(want: Want): Promise<SearchResult[]> {
+  if (want.maxPriceCents == null) return [];
+  const found: SearchResult[] = [];
+  for (const seen of activeListings.values()) {
+    const listing = await db.getListing(seen.id);
+    if (listing?.status !== "active" || listing.sellerId === want.buyerId || listing.priceCents > want.maxPriceCents * SPREAD_MAX_FACTOR) continue;
+    const score = keywordScore(want.queryText, `${listing.title} ${listing.category} ${listing.description}`);
+    if (score >= KEYWORD_THRESHOLD) found.push({ listing, score });
+  }
+  return found.sort((a, b) => b.score - a.score);
 }
 
 /** One delayed retry. unref() so a pending retry never keeps tests or a shutdown from exiting. */
@@ -119,7 +135,7 @@ async function keywordCandidates(listing: Listing): Promise<{ want: Want; score:
   for (const want of openWants.values()) {
     const fresh = await db.getWant(want.id);
     if (!fresh || fresh.status !== "open" || fresh.buyerId === listing.sellerId) continue;
-    if (fresh.maxPriceCents != null && listing.priceCents > fresh.maxPriceCents * NEAR_MISS_FACTOR) continue; // near misses still ping
+    if (fresh.maxPriceCents != null && listing.priceCents > fresh.maxPriceCents * SPREAD_MAX_FACTOR) continue; // near misses ping, wide spreads get a notice
     const score = keywordScore(fresh.queryText, `${listing.title} ${listing.category} ${listing.description}`);
     if (score >= KEYWORD_THRESHOLD) found.push({ want: fresh, score });
   }

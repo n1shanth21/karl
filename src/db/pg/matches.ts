@@ -7,7 +7,7 @@ import { defined, insertEvent, isUuid, type Sql } from "./client";
 
 type MatchQueries = Pick<
   Db,
-  "createMatch" | "getMatch" | "updateMatch" | "activeMatchesForUser" | "matchesWithExpiredHold" | "matchesDueForCheckin"
+  "createMatch" | "getMatch" | "updateMatch" | "activeMatchesForUser" | "matchesWithExpiredHold" | "matchesDueForCheckin" | "matchesByStatus"
 >;
 
 export function matchesQueries(sql: Sql): MatchQueries {
@@ -79,6 +79,14 @@ export function matchesQueries(sql: Sql): MatchQueries {
         select ${cols} from matches
         where status = 'meetup_set' and meetup_at is not null and meetup_at < ${date}
         order by meetup_at asc
+      `;
+    },
+
+    async matchesByStatus(status, createdBefore) {
+      return sql<Match[]>`
+        select ${cols} from matches
+        where status = ${status} and created_at < ${createdBefore}
+        order by created_at asc
       `;
     },
   };

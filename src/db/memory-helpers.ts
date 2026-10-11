@@ -2,7 +2,7 @@
 // plain arguments and never change them, so memory.ts stays small. Owner: Himagna (data branch).
 
 import { config } from "../config";
-import type { Listing, Match, Stats, User, Want } from "../types";
+import type { Listing, Match, MatchStatus, Stats, User, Want } from "../types";
 import { photoUrl } from "./pg/client";
 
 const ACTIVE_MATCH = ["proposed", "accepted", "meetup_set"];
@@ -71,6 +71,10 @@ export function matchesWithExpiredHold(matches: Map<string, Match>, date: Date):
 
 export function matchesDueForCheckin(matches: Map<string, Match>, date: Date): Match[] {
   return [...matches.values()].filter((m) => m.status === "meetup_set" && m.meetupAt !== null && m.meetupAt < date);
+}
+
+export function matchesByStatus(matches: Map<string, Match>, status: MatchStatus, createdBefore: Date): Match[] {
+  return [...matches.values()].filter((m) => m.status === status && m.createdAt < createdBefore);
 }
 
 // A new want is open for 7 days.

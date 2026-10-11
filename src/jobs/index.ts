@@ -3,6 +3,8 @@
 
 import { config } from "../config";
 import { runBackfill } from "./backfill";
+import { expireProposals, closeStuckDeals } from "./expiry";
+import { checkinReminders, staleSweep } from "./lifecycle";
 import { dueCheckins, expireHolds, expireWants } from "./timers";
 
 let running = false;
@@ -17,7 +19,11 @@ export async function tick(now = new Date()): Promise<void> {
   try {
     await expireHolds(now); // 1. holds that ran out -> match expired, listing active
     await dueCheckins(now); // 2. meetups past meetupAt + delay -> ask "did it happen?" (once)
-    await expireWants(now); // 3. wants past expiresAt -> closed
+    await checkinReminders(now); // 3. unconfirmed meetups: re-ask every 24 h, at most twice
+    await expireWants(now); // 4. wants past expiresAt -> closed
+    await staleSweep(now); // 5. open listings/wants quiet for 48 h -> "still selling?", then auto-close
+    await closeStuckDeals(now); // 6. meetups still unconfirmed 24 h after the 2nd reminder -> deal closed, listing back up
+    await expireProposals(now); // 7. requests/offers nobody answered for 24 h -> match expired, listing stays up
   } finally {
     running = false;
   }

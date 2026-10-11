@@ -8,6 +8,7 @@ import type {
   ListingDraft,
   ListingStatus,
   Match,
+  MatchStatus,
   SearchResult,
   Stats,
   StoredMessage,
@@ -35,6 +36,15 @@ export const DB_OWNED_EVENTS: ReadonlySet<string> = new Set([
   "match_accepted",
   "sale_completed",
 ]);
+
+/** One row of the events log, as returned by db.findEvents(). */
+export type EventRow = {
+  ts: Date;
+  type: string;
+  userId: string | null;
+  listingId: string | null;
+  payload: Record<string, unknown>;
+};
 
 export interface Db {
   // users
@@ -76,6 +86,8 @@ export interface Db {
   matchesWithExpiredHold(date: Date): Promise<Match[]>;
   /** status "meetup_set" and meetupAt < date (caller adds the check-in delay). */
   matchesDueForCheckin(date: Date): Promise<Match[]>;
+  /** Matches with this status that were created before `date` (jobs use it to expire unanswered "proposed" ones). */
+  matchesByStatus(status: MatchStatus, createdBefore: Date): Promise<Match[]>;
 
   // analytics (events table = Tiger hypertable in postgres mode)
   logEvent(type: string, data?: { userId?: string; listingId?: string; payload?: Record<string, unknown> }): Promise<void>;
@@ -97,6 +109,17 @@ export interface Db {
   ): Promise<{ want: Want; score: number }[]>;
   /** How many events of this type a user has had since a time (daily ping cap). listingId narrows it to one listing. */
   countEventsSince(type: string, opts: { userId: string; since: Date; listingId?: string }): Promise<number>;
+
+  /**
+   * Events of one type, newest first (for lifecycle jobs). `payload` keeps only rows whose payload contains
+   * every given key/value (string values). Default limit 50.
+   */
+  findEvents(
+    type: string,
+    opts: { userId?: string; listingId?: string; payload?: Record<string, string>; limit?: number },
+  ): Promise<EventRow[]>;
+  /** All open wants, oldest first (staleness job). */
+  openWants(limit: number): Promise<Want[]>;
 
   // robustness + price hints (Phase DX)
   /** Active listings, newest first (keyword search fallback when Gemini is down). */

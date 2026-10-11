@@ -6,10 +6,10 @@ import { LIMITS } from "../config";
 import { db } from "../db";
 import type { Listing, SearchResult, Want } from "../types";
 import { embedDocuments, embedQuery } from "./embed";
-import { MATCH_MIN_SCORE, NEAR_MISS_FACTOR, SEARCH_MIN_SCORE } from "./thresholds";
+import { noticeSpread, PING_EVENT, priceBand, SPREAD_EVENT } from "./spread";
+import { MATCH_MIN_SCORE, SEARCH_MIN_SCORE, SPREAD_MAX_FACTOR } from "./thresholds";
 
-/** Event type logged each time we proactively ping a buyer (counted for the daily cap). */
-export const PING_EVENT = "match_pinged";
+export { PING_EVENT }; // defined in spread.ts (which also counts it for the buyer's daily cap)
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -29,9 +29,33 @@ export async function searchSemantic(
 }
 
 /** Embed + store a saved want. Wants are phrased like searches, so use the query embedding. */
-export async function wantSemantic(want: Want): Promise<void> {
+export async function wantSemantic(want: Want): Promise<number[]> {
   const vec = await embedQuery(want.queryText);
   await db.setWantEmbedding(want.id, vec);
+  return vec;
+}
+
+/** A new want vs listings that already exist: only asks OVER the bid (cheaper ones were in the search results). */
+export async function matchWantByVector(want: Want, vec: number[], now: Date = new Date()): Promise<void> {
+  if (want.maxPriceCents == null) return;
+  const found = await db.searchListingsByVector(vec, {
+    maxPriceCents: Math.floor(want.maxPriceCents * SPREAD_MAX_FACTOR),
+    excludeSellerId: want.buyerId,
+    minScore: MATCH_MIN_SCORE,
+    limit: 10,
+  });
+  await routeWantMatches(want, found, now);
+}
+
+/** Listings that match a new want: ask <= 1.5x the bid -> match_found ping, up to 3x -> spread_found. */
+export async function routeWantMatches(want: Want, found: SearchResult[], now: Date = new Date()): Promise<void> {
+  let spreadSent = false; // at most one spread notice per new want (the best match), not a burst
+  for (const { listing, score } of found) {
+    if (want.maxPriceCents == null || listing.priceCents <= want.maxPriceCents || listing.sellerId === want.buyerId) continue;
+    const band = priceBand(listing.priceCents, want.maxPriceCents);
+    if (band === "match") await pingBuyers(listing, [{ want, score }], now);
+    else if (band === "spread" && !spreadSent) spreadSent = await noticeSpread(listing, want, now);
+  }
 }
 
 /** Step 1 of activation: embed + store the listing. This is the step that can fail on Gemini quota. */
@@ -44,13 +68,20 @@ export async function embedListing(listing: Listing): Promise<number[]> {
 /** Step 2 of activation: find open wants close in meaning to the listing and ping their buyers. */
 export async function matchListingByVector(listing: Listing, vec: number[], now: Date = new Date()): Promise<void> {
   const matches = await db.openWantsByVector(vec, {
-    // The query keeps wants with max >= priceCents. Passing price / 1.5 (rounded up) lets near misses through
-    // (max * 1.5 >= price) without touching the SQL. No-max wants always pass.
-    priceCents: Math.ceil(listing.priceCents / NEAR_MISS_FACTOR),
+    // The query keeps wants with max >= priceCents. Passing price / 3 (rounded up) lets near misses and wide
+    // spreads through (max * 3 >= price) without touching the SQL; routeListingMatches sorts them. No-max wants pass.
+    priceCents: Math.ceil(listing.priceCents / SPREAD_MAX_FACTOR),
     excludeBuyerId: listing.sellerId,
     minScore: MATCH_MIN_SCORE,
   });
-  await pingBuyers(listing, matches, now);
+  await routeListingMatches(listing, matches, now);
+}
+
+/** A listing's matching wants (best first): ask <= 1.5x the bid -> match_found ping, up to 3x -> spread_found. */
+export async function routeListingMatches(listing: Listing, matches: { want: Want; score: number }[], now: Date = new Date()): Promise<void> {
+  const near = matches.filter((m) => priceBand(listing.priceCents, m.want.maxPriceCents) === "match");
+  await pingBuyers(listing, near, now);
+  for (const { want } of matches) await noticeSpread(listing, want, now);
 }
 
 /** Both steps. Kept for callers/tests that want activation in one call. */
@@ -78,6 +109,7 @@ export async function pingBuyers(listing: Listing, matches: { want: Want; score:
 
     const alreadyForListing = await db.countEventsSince(PING_EVENT, { userId: buyerId, listingId: listing.id, since: new Date(0) });
     if (alreadyForListing > 0) continue;
+    if ((await db.countEventsSince(SPREAD_EVENT, { userId: buyerId, listingId: listing.id, since: new Date(0) })) > 0) continue; // already told via a spread notice
     const today = await db.countEventsSince(PING_EVENT, { userId: buyerId, since: new Date(now.getTime() - DAY_MS) });
     if (today >= LIMITS.maxProactivePingsPerUserPerDay) continue;
 

@@ -8,6 +8,7 @@ import {
   activeMatchesForUser,
   computeStats,
   defined,
+  matchesByStatus,
   matchesDueForCheckin,
   matchesWithExpiredHold,
   must,
@@ -161,6 +162,9 @@ export function createMemoryDb(): Db {
     async matchesDueForCheckin(date) {
       return matchesDueForCheckin(matches, date);
     },
+    async matchesByStatus(status, createdBefore) {
+      return matchesByStatus(matches, status, createdBefore);
+    },
 
     async logEvent(type, data) {
       if (DB_OWNED_EVENTS.has(type)) return; // already logged by the write itself (see DB_OWNED_EVENTS)
@@ -183,6 +187,26 @@ export function createMemoryDb(): Db {
       return events.filter(
         (e) => e.type === type && e.userId === userId && e.ts >= since && (listingId === undefined || e.listingId === listingId),
       ).length;
+    },
+
+    async findEvents(type, { userId, listingId, payload, limit = 50 }) {
+      return events
+        .filter(
+          (e) =>
+            e.type === type &&
+            (userId === undefined || e.userId === userId) &&
+            (listingId === undefined || e.listingId === listingId) &&
+            Object.entries(payload ?? {}).every(([k, v]) => e.payload?.[k] === v),
+        )
+        .map((e) => ({ ts: e.ts, type: e.type, userId: e.userId ?? null, listingId: e.listingId ?? null, payload: e.payload ?? {} }))
+        .reverse() // events are appended in time order, so reversed = newest first
+        .slice(0, Math.max(0, limit));
+    },
+    async openWants(limit) {
+      return [...wants.values()]
+        .filter((w) => w.status === "open")
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+        .slice(0, Math.max(0, limit));
     },
 
     async activeListings(limit) {

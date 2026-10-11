@@ -38,6 +38,24 @@ async function offerListing({ wantId, listingId, buyerId }: BusEvents["match_fou
   if ((await db.getUser(buyer.id))?.state.kind !== "drafting_listing") await db.updateUser(buyer.id, { state: { kind: "choosing_result", listingIds: [listingId] } });
 }
 
+/** Rounded-to-$1 midpoint between a bid and an ask: the price Karl suggests when a seller just says "yes". */
+export const midpointCents = (bidCents: number, askCents: number) => Math.round((bidCents + askCents) / 200) * 100;
+
+/** A bid and an ask for the same item, far apart: tell the buyer what exists and the seller what's wanted. */
+async function spreadFound({ wantId, listingId, buyerId, sellerId }: BusEvents["spread_found"]) {
+  const [buyer, seller, listing, want] = await Promise.all([db.getUser(buyerId), db.getUser(sellerId), db.getListing(listingId), db.getWant(wantId)]);
+  if (!buyer || !seller || listing?.status !== "active" || want?.status !== "open" || want.maxPriceCents == null) return;
+  const [ask, bid, item] = [dollars(listing.priceCents), dollars(want.maxPriceCents), itemName(listing)];
+  offered.set(`${buyerId}:${listingId}`, wantId); // if they take it up, openMatch marks this want matched (and it reopens if it falls through)
+
+  const photo = await photoAttachment(listing.photoId);
+  const ref = { kind: "offer", listingId, wantId, spread: true } as const;
+  if (photo) await sendTo(buyer, photo, { logText: `[photo of ${item}]`, ref });
+  await sendTo(buyer, `someone's selling a ${item} for ${ask} (you said ${bid}). want me to make them an offer? reply with a price, or 👎`, { ref });
+  const example = dollars(midpointCents(want.maxPriceCents, listing.priceCents));
+  await sendTo(seller, `someone's looking for a ${item} around ${bid} (you're at ${ask}). want to offer it to them? reply with a price (like ${example}), or 👎`, { ref: { kind: "bid", listingId, wantId } });
+}
+
 async function holdExpired({ matchId }: BusEvents["hold_expired"]) {
   const match = await db.getMatch(matchId);
   const [listing, buyer, seller] = match
@@ -71,6 +89,7 @@ export function registerNotifications(): void {
   if (registered) return;
   registered = true;
   bus.on("match_found", offerListing);
+  bus.on("spread_found", spreadFound);
   bus.on("hold_expired", holdExpired);
   bus.on("meetup_checkin_due", meetupCheckin);
   bus.on("want_expired", wantExpired);

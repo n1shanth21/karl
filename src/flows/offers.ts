@@ -1,7 +1,7 @@
 // Price negotiation before a deal: buyer offer → seller yes/no/counter → ping-pong → accept at the agreed price.
 // Karl relays each side's price through their own DM (no group chats). Owner: Nishanth.
 
-import { reopenOfferedWant } from "../agent/notifications";
+import { midpointCents, reopenOfferedWant } from "../agent/notifications";
 import { db } from "../db";
 import { sendTo } from "../spectrum/send";
 import type { Listing, User } from "../types";
@@ -18,6 +18,12 @@ const pending = new Map<string, Pending>();
 
 /** Is there a price on the table for this match (an offer or counter)? */
 export const hasPendingOffer = (matchId: string) => pending.has(matchId);
+
+/** Who named the price still on the table (the side now waiting for an answer); a plain request is the buyer waiting. */
+export const offerWaiter = (matchId: string): "buyer" | "seller" => pending.get(matchId)?.from ?? "buyer";
+
+/** Forget the price on the table for a match that is over. */
+export const clearOffer = (matchId: string) => void pending.delete(matchId);
 
 const name = (user: User, fallback: string) => user.firstName ?? fallback;
 
@@ -101,8 +107,27 @@ export async function counterOffer(user: User, matchId: string, cents: number): 
  * yes with no price -> offer the buyer the midpoint; a price -> offer that; no -> politely drop it.
  * Seller-initiated offer: the BUYER gets "the seller of <item> would do $X (you said $15). deal? (❤️/yes, no, or a price)"
  * with a {kind:"counter", matchId} ref, so the existing counter flow takes over. Returns Karl's reply to the seller.
- * TODO(wave: orderbook)
  */
-export async function answerBid(_seller: User, _bid: { listingId: string; wantId: string }, _answer: { yes: boolean } | { priceCents: number }): Promise<string> {
-  throw new Error("TODO(orderbook): answerBid");
+export async function answerBid(seller: User, bid: { listingId: string; wantId: string }, answer: { yes: boolean } | { priceCents: number }): Promise<string> {
+  const [listing, want] = await Promise.all([db.getListing(bid.listingId), db.getWant(bid.wantId)]);
+  if (!listing || listing.sellerId !== seller.id || listing.status !== "active") return "that one's not listed anymore, so nothing to offer";
+  const ask = dollars(listing.priceCents);
+  if ("yes" in answer && !answer.yes) return `no worries, it stays listed at ${ask}`;
+  const buyer = want?.status === "open" ? await db.getUser(want.buyerId) : null;
+  if (!want || want.maxPriceCents == null || !buyer || buyer.optedOut) return `looks like they're not looking anymore. it stays listed at ${ask}`;
+
+  const cents = "priceCents" in answer ? answer.priceCents : midpointCents(want.maxPriceCents, listing.priceCents);
+  if (!Number.isInteger(cents) || cents <= 0) return "what price are you thinking?";
+  if (cents >= listing.priceCents) return `that's not under your ${ask} ask, so it just stays listed at ${ask}. name a lower price if you want me to offer it`;
+  if ((await db.activeMatchesForUser(buyer.id)).some((m) => m.listingId === listing.id)) return "they're already talking to you about this one, hang tight";
+
+  const opened = await openMatch(buyer, listing);
+  if (typeof opened === "string") return opened;
+  pending.set(opened.match.id, { cents, from: "seller", counters: 0 });
+  await sendTo(
+    buyer,
+    `the seller of ${itemName(listing)} would do ${dollars(cents)} (you said ${dollars(want.maxPriceCents)}). deal? (❤️/yes, no, or reply with a price)`,
+    { ref: { kind: "counter", matchId: opened.match.id } },
+  );
+  return `sent ${dollars(cents)} to ${name(buyer, "them")}, i'll let you know`;
 }

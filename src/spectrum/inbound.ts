@@ -7,12 +7,13 @@ import { runAgentTurn } from "../agent/loop";
 import { cleanFirstName } from "../agent/tools";
 import { LIMITS } from "../config";
 import { db } from "../db";
-import { confirmDraft, draftFromPhoto } from "../flows/sell";
-import { pickResult } from "../flows/buy";
+import { confirmDraft, draftFromPhoto, removeListing } from "../flows/sell";
+import { cancelWant, pickResult } from "../flows/buy";
 import { parseOfferCents, parsePriceCents } from "../flows/format";
 import { confirmHappened, endDealsForBannedUser, proposeMatch } from "../flows/match";
-import { counterOffer, makeOffer, respondToOffer } from "../flows/offers";
+import { answerBid, counterOffer, makeOffer, respondToOffer } from "../flows/offers";
 import { routeMessage } from "../flows/relay";
+import { markStillActive } from "../flows/staleness";
 import { allowMessage, checkImage, isBanned } from "../safety";
 import type { User } from "../types";
 import { createBatcher } from "./debounce";
@@ -31,6 +32,11 @@ const YES: string[] = [Emoji.love, Emoji.like];
 // A short typed answer to Karl's last question counts like a tapback (no Gemini needed).
 const YES_TEXT = /^(y|ya|yes|yea|yeah|yep|yup|sure|ok|okay|sounds good|deal|do it|post it|👍|❤️)(?!\w)/i;
 const NO_TEXT = /^(n|no|nah|nope|not really|pass)(?!\w)/i;
+// Right after "still selling / still looking?", these also mean no.
+const GONE_TEXT = /\b(sold|gone|found one|got one|bought one|don'?t need|no longer|not anymore|never ?mind|nvm)\b/i;
+// "not sold yet", "haven't sold it", "nobody bought one yet" mention a gone-word but mean the opposite (still active).
+const GONE_PHRASES = /don'?t need|no longer|not anymore|never ?mind/gi;
+const NEGATED = /\b(not|never|nobody|no ?one|still|yet|hav?en['’]?t|hasn['’]?t|didn['’]?t|wasn['’]?t)\b/i;
 // Words that are never a first name (greetings, yes/no, commands, filler, request words, common items).
 const NOT_NAMES = new Set(
   (
@@ -173,9 +179,14 @@ async function handleTapback(user: User, ref: Ref | undefined, emoji: string): P
   if (!ref || (!YES.includes(emoji) && emoji !== Emoji.dislike)) return;
   const yes = YES.includes(emoji);
   const reply = await answerRef(user, ref, yes);
-  if (!reply) return;
-  await sendTo(user, reply);
-  clearLastRef(user.id);
+  if (reply) await deliver(user, ref, yes, reply);
+}
+
+/** Send the reply to an answered question. A "yes" to a spread offer only asks for a price, so that question stays open. */
+async function deliver(user: User, ref: Ref, yes: boolean, reply: string): Promise<void> {
+  const keep = ref.kind === "offer" && ref.spread && yes;
+  await sendTo(user, reply, keep ? { ref } : {});
+  if (!keep) clearLastRef(user.id);
 }
 
 /**
@@ -186,11 +197,14 @@ async function answerPrice(user: User, text: string): Promise<boolean> {
   const ref = lastRefTo(user.id);
   if (!ref) return false;
   let reply: string | null = null;
-  if (ref.kind === "match_request" || ref.kind === "counter") {
+  if (ref.kind === "bid") {
+    const cents = parsePriceCents(text); // seller names a price for the buyer who bid lower
+    reply = cents === null ? null : await answerBid(user, ref, { priceCents: cents });
+  } else if (ref.kind === "match_request" || ref.kind === "counter") {
     const cents = parsePriceCents(text);
     reply = cents === null ? null : await counterOffer(user, ref.matchId, cents);
   } else if (ref.kind === "offer" || (ref.kind === "result" && user.state.kind === "choosing_result" && user.state.listingIds.length <= 1)) {
-    const cents = parseOfferCents(text);
+    const cents = (ref.kind === "offer" && ref.spread ? parsePriceCents(text) : null) ?? parseOfferCents(text); // spread: a bare "20" is the price
     const listing = cents === null ? null : await db.getListing(ref.listingId);
     reply = listing && cents! < listing.priceCents ? await makeOffer(user, listing, cents!) : null; // free text never becomes a full-price request
   }
@@ -205,18 +219,25 @@ async function answerPrice(user: User, text: string): Promise<boolean> {
 /** A short "yes" / "no" typed right after one of Karl's questions is answered like the matching tapback. */
 async function answerShortcut(user: User, text: string): Promise<boolean> {
   const words = text.trim().split(/\s+/);
+  const ref = lastRefTo(user.id);
+  if (ref?.kind === "still_active" && words.length <= 8 && GONE_TEXT.test(text) && !(await db.activeMatchesForUser(user.id)).length) {
+    return answerNow(user, ref, NEGATED.test(text.replace(GONE_PHRASES, ""))); // negated = they still have it / still want it
+  }
   const yes = YES_TEXT.test(text.trim());
   if (words.length > 4 || (!yes && !NO_TEXT.test(text.trim()))) return false;
 
-  const ref = lastRefTo(user.id);
   if (!ref || ref.kind === "relay") return false;
   // With several results on screen, "yes" is ambiguous: let the agent work out which one.
   if (ref.kind === "result" && user.state.kind === "choosing_result" && user.state.listingIds.length > 1) return false;
 
+  return answerNow(user, ref, yes);
+}
+
+/** Answer a pending question and send the reply. False when the agent should decide (e.g. "no" to a draft). */
+async function answerNow(user: User, ref: Ref, yes: boolean): Promise<boolean> {
   const reply = await answerRef(user, ref, yes);
-  if (!reply) return false; // e.g. "no" to a draft: the agent decides what that means
-  await sendTo(user, reply);
-  clearLastRef(user.id);
+  if (!reply) return false;
+  await deliver(user, ref, yes, reply);
   return true;
 }
 
@@ -231,6 +252,7 @@ async function answerRef(user: User, ref: Ref, yes: boolean): Promise<string | n
       return yes ? pickResult(user, { listingId: ref.listingId }) : null;
     case "offer": {
       const listing = yes ? await db.getListing(ref.listingId) : null;
+      if (listing && ref.spread) return "what price should i offer them? just reply with a number"; // never a full-price request
       return listing ? proposeMatch(user, listing) : null; // proposeMatch marks the pinged want matched
     }
     case "match_request":
@@ -240,9 +262,18 @@ async function answerRef(user: User, ref: Ref, yes: boolean): Promise<string | n
       return confirmHappened(user, ref.matchId, yes);
     case "relay":
       return null;
-    case "bid": // TODO(wave: conversation): answerBid
-    case "still_active": // TODO(wave: conversation): markStillActive / close
-      return null;
+    case "bid": // a seller's yes/no to "someone wants one around $15" (a price is handled in answerPrice)
+      return answerBid(user, ref, { yes });
+    case "still_active": {
+      const { listingId, wantId } = ref;
+      if (yes) {
+        await markStillActive(user.id, { listingId, wantId });
+        return listingId ? "cool, it's still up" : "cool, still looking for you";
+      }
+      if (listingId) await removeListing(user, listingId);
+      else if (wantId) await cancelWant(user, wantId);
+      return listingId ? "got it, took it down" : "got it, stopped looking";
+    }
   }
 }
 
