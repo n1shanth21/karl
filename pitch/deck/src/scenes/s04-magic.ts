@@ -7,6 +7,7 @@ import { drawableTube, param } from "../lib/motion";
 import { playClip, videoTexture } from "../lib/phone";
 import { COLORS } from "../world";
 import { clipTime } from "../director";
+import { createLamp, createPulse, flicker } from "../lib/lamp";
 
 // 4 · The magic moment: want → match. A timeline draws itself, the want waits on it
 // while a day passes, a listing drops in, a line snaps between them, and a phone
@@ -16,6 +17,8 @@ const LINE_Y = HUB.y - 2.6;
 const PIN = new THREE.Vector3(HUB.x - 10, HUB.y + 0.8, HUB.z);
 const LISTING = new THREE.Vector3(HUB.x + 4.5, HUB.y + 0.6, HUB.z);
 export const PHONE_AT = new THREE.Vector3(HUB.x + 8.6, HUB.y + 0.4, HUB.z + 9);
+// the desk lamp stands on the top edge of the listing card (card is 2.3 tall)
+const LAMP_AT = new THREE.Vector3(LISTING.x + 0.9, LISTING.y + 1.15, HUB.z + 0.35);
 
 let timeline: ReturnType<typeof drawableTube>;
 let snapLine: ReturnType<typeof drawableTube>;
@@ -24,6 +27,8 @@ let sun: THREE.Mesh;
 let ticks: THREE.Group;
 export let magicFade: { opacity: number }; // everything this scene added (not the phone)
 const sky = { k: 0 };
+let lamp: ReturnType<typeof createLamp>;
+let pulse: ReturnType<typeof createPulse>;
 let clockEl: HTMLElement;
 
 // tue 9:12 pm → wed 11:03 am, shown while the sun crosses
@@ -41,7 +46,7 @@ export const magic: Scene = {
   title: "Want → match",
   move: "lines draw",
   notes:
-    "Here's the part nobody else does.\n\nYou text “need a desk lamp under $20.” Nothing's listed. Karl saves it as a want.\n\nA day later someone lists a desk lamp for $15. Karl matches it and texts you first, without you checking anything.",
+    "Here's the part nobody else does.\n\nYou text “need a desk lamp under $20.” Nothing's listed. Karl saves it as a want.\n\nA day later someone lists a desk lamp for $15. Karl matches it and texts you first, without you checking anything.\n\nUnder the hood your want is a standing semantic search: it's stored as an embedding, and every new listing gets searched against the saved wants in reverse. It's event-driven, so you get pinged the moment it's listed.",
   texts: [],
 
   init(w) {
@@ -94,9 +99,27 @@ export const magic: Scene = {
     snapLine = drawableTube(arc, 0.06, 0xffffff, 100);
     g.add(snapLine.mesh);
 
+    // the lamp itself (hidden until the listing lands) and the pulse that runs to the phone
+    lamp = createLamp(w);
+    lamp.group.position.copy(LAMP_AT);
+    lamp.group.scale.setScalar(1.2); // small enough that the shade stays clear of the title
+    w.scene.add(lamp.group);
+    const run = new THREE.QuadraticBezierCurve3(
+      LAMP_AT.clone().add(new THREE.Vector3(-0.85, 1.6, 0)),
+      new THREE.Vector3((LAMP_AT.x + PHONE_AT.x) / 2 + 0.5, LAMP_AT.y + 3.6, (LAMP_AT.z + PHONE_AT.z) / 2),
+      new THREE.Vector3(PHONE_AT.x - 0.2, PHONE_AT.y + 3.1, PHONE_AT.z + 0.6),
+    );
+    pulse = createPulse(run, lamp);
+    w.scene.add(pulse.group);
+
     const mats: THREE.Material[] = [];
     g.traverse((o) => { if (o instanceof THREE.Mesh && o !== timeline.mesh && o !== snapLine.mesh) mats.push(o.material as THREE.Material); });
-    magicFade = fader([...mats, timeline.mesh.material as THREE.Material, snapLine.mesh.material as THREE.Material], 1);
+    const cardFade = fader([...mats, timeline.mesh.material as THREE.Material, snapLine.mesh.material as THREE.Material], 1);
+    // the lamp rides on magicFade, so the next scene's fade-out takes it away too (no extra call needed)
+    magicFade = {
+      get opacity() { return cardFade.opacity; },
+      set opacity(v: number) { cardFade.opacity = v; lamp.setExit(v); },
+    };
     for (const m of mats) (m as THREE.MeshBasicMaterial).transparent = true;
     ticksFade = fader(ticks.children.map((c) => (c as THREE.Mesh).material as THREE.Material), 0);
 
@@ -110,7 +133,11 @@ export const magic: Scene = {
     w.tick(() => { (w.scene.background as THREE.Color).copy(night).lerp(day, sky.k); });
 
     clockEl = text(w, "tue 9:12 pm", { x: 146, y: 222, cls: "small mono" });
-    this.texts = [text(w, "Ask once. Karl keeps looking.", { x: 140, y: 110, cls: "title" }), clockEl];
+    this.texts = [
+      text(w, "Ask once. Karl keeps looking.", { x: 140, y: 110, cls: "title" }),
+      clockEl,
+      text(w, "your want becomes a standing semantic search · every new listing is matched against it", { x: 142, y: 975, cls: "small" }),
+    ];
   },
 
   build(w, tl) {
@@ -136,18 +163,30 @@ export const magic: Scene = {
 
     // the listing lands and the match line snaps across
     tl.to(listing.position, { y: LISTING.y, duration: 1.0, ease: "bounce.out" }, 5.0);
-    tl.to(snapLine, { draw: 1, duration: 0.7, ease: "power3.in" }, 5.9);
-    tl.fromTo(bubble.scale, { x: 0.62, y: 0.62, z: 0.62 }, { x: 0.72, y: 0.72, z: 0.72, duration: 0.18, yoyo: true, repeat: 1, ease: "power1.out", immediateRender: false }, 6.6);
+    tl.to(snapLine, { draw: 1, duration: 0.7, ease: "power3.in" }, 6.5);
+    tl.fromTo(bubble.scale, { x: 0.62, y: 0.62, z: 0.62 }, { x: 0.72, y: 0.72, z: 0.72, duration: 0.18, yoyo: true, repeat: 1, ease: "power1.out", immediateRender: false }, 7.2);
+
+    // the lamp materializes as the card lands: base drops, arm draws, shade flies in, bulb flickers on
+    const asm = param((p) => lamp.setAssemble(p));
+    const glow = param((p) => lamp.setGlow(flicker(p)));
+    tl.to(asm, { t: 1, duration: 0.95, ease: "none" }, 5.7);
+    tl.to(glow, { t: 1, duration: 0.7, ease: "none" }, 6.45);
+    // when the line snaps, a pulse runs from the lamp to the phone
+    tl.to(pulse, { travel: 1, duration: 1.0, ease: "none" }, 7.2);
+    textIn(tl, this.texts[2], 7.4);
 
     // the phone rises in and Karl's text arrives
-    tl.to(P.phone.group, { visible: true, duration: 0.01 }, 6.5);
-    tl.to(P.phone.group.position, { y: PHONE_AT.y, duration: 1.3, ease: "power3.out" }, 6.5);
-    tl.to(P.phone.group.rotation, { y: -0.32, duration: 1.3, ease: "power3.out" }, 6.5);
-    tl.to(cam, { x: 3.2, z: HUB.z + 25, duration: 1.6 }, 6.4);
-    tl.to(w.look, { x: 3.2, duration: 1.6 }, 6.4);
-    tl.call(() => { if (!tl.reversed()) playClip("MatchPing"); }, [], 6.9);
+    // (a jump past scene 8 and back leaves the safety clip on this phone: always show the match screen here)
+    tl.call(() => P.phone.setScreen(videoTexture("MatchPing")), [], 7.05);
+    tl.to(P.phone.group, { visible: true, duration: 0.01 }, 7.1);
+    tl.to(P.phone.group.position, { y: PHONE_AT.y, duration: 1.3, ease: "power3.out" }, 7.1);
+    tl.to(P.phone.group.rotation, { y: -0.32, duration: 1.3, ease: "power3.out" }, 7.1);
+    tl.to(cam, { x: 3.2, z: HUB.z + 25, duration: 1.6 }, 7.0);
+    tl.to(w.look, { x: 3.2, duration: 1.6 }, 7.0);
+    tl.call(() => { if (!tl.reversed()) playClip("MatchPing"); }, [], 7.5);
     // buzz when the message lands (~2.7 s into the clip)
-    tl.to(P.phone.group.rotation, { z: 0.04, duration: 0.05, yoyo: true, repeat: 9, ease: "none" }, 6.9 + clipTime(2.7));
+    tl.to(P.phone.group.rotation, { z: 0.04, duration: 0.05, yoyo: true, repeat: 9, ease: "none" }, 7.5 + clipTime(2.7));
+    tl.to(pulse, { ping: 1, duration: 0.9, ease: "power2.out" }, 7.5 + clipTime(2.7));
   },
 
   settle() {

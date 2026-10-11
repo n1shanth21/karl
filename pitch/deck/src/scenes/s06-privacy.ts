@@ -55,7 +55,7 @@ export const privacy: Scene = {
 
     this.texts = [
       text(w, "Nobody's number gets shared.", { x: 960, y: 110, cls: "title", align: "center" }),
-      text(w, "buyer and seller each text Karl · Karl passes the messages along", { x: 960, y: 930, cls: "small", align: "center" }),
+      text(w, "masked relay · two 1:1 threads bridged by Karl · rules route first, an intent model breaks ties", { x: 960, y: 930, cls: "small", align: "center" }),
     ];
   },
 

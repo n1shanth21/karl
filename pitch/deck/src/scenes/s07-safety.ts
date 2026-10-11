@@ -32,7 +32,7 @@ export const safety: Scene = {
   title: "Safety",
   move: "push-in + pulse rings + shatter",
   notes:
-    "Every relayed message is scanned before it's forwarded.\n\nPay-first, deposit and pressure messages go through with a warning to the other person.\n\nPhone numbers, emails, social handles, links, gift cards and wire or crypto asks are blocked outright. Prohibited items get refused, every inbound photo is checked, and stop/help always work. Karl never touches money.",
+    "Every relayed message is scanned before it's forwarded.\n\nPay-first, deposit and pressure messages go through with a warning to the other person.\n\nPhone numbers, emails, social handles, links, gift cards and wire or crypto asks are blocked outright. Prohibited items get refused, and stop/help always work. Karl never touches money.\n\nThe message scan is plain code, so it adds no model latency to a relay. Photos are different: Gemini vision moderates every inbound photo, and if the check fails or times out, the photo is blocked (fail-closed).",
   texts: [],
 
   init(w) {
@@ -75,6 +75,7 @@ export const safety: Scene = {
       text(w, "Every message gets scanned.", { x: 140, y: 100, cls: "title" }),
       text(w, "pay first · deposits · pressure → <b>Karl warns</b>", { x: 140, y: 850, cls: "line" }),
       text(w, "numbers · links · gift cards · crypto → <span class='red'>blocked</span>", { x: 140, y: 930, cls: "line" }),
+      text(w, "plain-code scan on every relay, no model in the hot path · Gemini vision moderates every photo, fail-closed", { x: 142, y: 1005, cls: "small" }),
     ];
   },
 
@@ -110,6 +111,7 @@ export const safety: Scene = {
     tl.to(burst, { t: 1, duration: 1.4, ease: "power2.out" }, 7.25);
     tl.to(blockedFade, { opacity: 1, duration: 0.3 }, 7.3);
     textIn(tl, this.texts[2], 7.5);
+    textIn(tl, this.texts[3], 8.1);
   },
 
   settle() {

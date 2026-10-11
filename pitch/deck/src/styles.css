@@ -61,6 +61,8 @@ html, body {
 .t.line { font-size: var(--karl-size-line); font-weight: 500; }
 .t.small { font-size: var(--karl-size-small); font-weight: 500; color: var(--karl-muted); letter-spacing: -0.01em; }
 .t.mono { font-family: "JetBrains Mono", var(--karl-font-mono); letter-spacing: 0; }
+.t.step { font-size: 36px; font-weight: 500; line-height: 1.3; letter-spacing: -0.015em; }
+.t.step .detail { font-size: 28px; color: var(--karl-muted); padding-left: 58px; }
 .t .blue { color: var(--karl-blue); }
 .t .red { color: var(--karl-block); }
 .t .green { color: var(--karl-ok); }
