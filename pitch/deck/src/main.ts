@@ -7,10 +7,14 @@ import { SCENES } from "./scenes";
 import { loadStats } from "./stats";
 import { isDemoBackupOn, resetDemoBackup, toggleDemoBackup } from "./scenes/s05-demo";
 import { channel, DeckMsg } from "./sync";
+import { clip } from "./lib/phone";
 
 // Canvas labels need the bundled font loaded before they are drawn.
 // Live stats are fetched at the same time (2.5 s max, then the offline snapshot).
 await Promise.all([...[500, 600, 700].map((wt) => document.fonts.load(`${wt} 40px "Inter Variable"`)), loadStats()]);
+
+// Start loading every phone clip now, so a clip that first plays mid-scene is already buffered.
+for (const name of ["SellDraft", "WantSaved", "MatchPing", "DemoBackup", "MaskedRelay", "Negotiation", "SafetyWarning"]) clip(name);
 
 const world = createWorld();
 createProps(world);
