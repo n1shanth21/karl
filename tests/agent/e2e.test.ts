@@ -163,7 +163,7 @@ test("a desk lamp goes from photo to sold, across two phones, through handleInbo
   await waitFor("Maya in choosing_result", async () => (await userOf(MAYA_PHONE)).state.kind === "choosing_result");
   const offer = (await received(mayaUser)).slice(mayaBefore);
   expect(offer[0]!.built?.type).toBe("attachment");
-  expect(offer[1]!.text).toBe("someone just listed a desk lamp, $15. want it? (❤️ or yes)");
+  expect(offer[1]!.text).toBe("someone just listed a desk lamp, $15, good condition. want it? (❤️ or yes)");
   expect(chatCalls).toHaveLength(2);
   expect(describeCalls).toHaveLength(1);
 

@@ -231,7 +231,7 @@ test("match_found offers the listing with a photo, a ref, and choosing_result st
   await Bun.sleep(50);
 
   expect(sentTo(buyer)).toHaveLength(2); // photo + offer, only once
-  expect(lastTextTo(buyer)).toBe("someone just listed a mini fridge, $45. want it? (❤️ or yes)");
+  expect(lastTextTo(buyer)).toBe("someone just listed a mini fridge, $45, good condition. want it? (❤️ or yes)");
   const offerRef = { kind: "offer", listingId: listing.id, wantId: want.id } as const;
   expect(lookupRef(sentTo(buyer).at(-1)!.id)).toEqual(offerRef);
   expect(lookupRef(sentTo(buyer)[0]!.id)).toEqual(offerRef); // the photo carries the same ref

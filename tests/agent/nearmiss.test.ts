@@ -59,5 +59,5 @@ test("no max pings with the normal wording", async () => {
 test("in-budget listing keeps the original wording", async () => {
   const buyer = await scenario(1000, 800);
   expect(found).toEqual([buyer.id]);
-  expect(lastTextTo(buyer)).toBe("someone just listed a water bottle, $8. want it? (❤️ or yes)");
+  expect(lastTextTo(buyer)).toBe("someone just listed a water bottle, $8, good condition. want it? (❤️ or yes)");
 });

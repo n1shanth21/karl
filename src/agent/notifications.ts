@@ -2,7 +2,7 @@
 
 import { bus, type BusEvents } from "../bus";
 import { db } from "../db";
-import { dollars, itemName } from "../flows/format";
+import { conditionText, dollars, itemName } from "../flows/format";
 import { photoAttachment } from "../flows/photo";
 import { isSeedUser, sendTo } from "../spectrum/send";
 
@@ -31,8 +31,8 @@ async function offerListing({ wantId, listingId, buyerId }: BusEvents["match_fou
   const max = (await db.getWant(wantId))?.maxPriceCents;
   const text =
     max != null && listing.priceCents > max
-      ? `someone just listed a ${itemName(listing)} for ${dollars(listing.priceCents)} (a bit over your ${dollars(max)}). want it, or want me to ask if they'd take ${dollars(max)}? (❤️/yes, or 'offer ${dollars(max)}')`
-      : `someone just listed a ${itemName(listing)}, ${dollars(listing.priceCents)}. want it? (❤️ or yes)`;
+      ? `someone just listed a ${itemName(listing)} for ${dollars(listing.priceCents)}, ${conditionText(listing.condition)} condition (a bit over your ${dollars(max)}). want it, or want me to ask if they'd take ${dollars(max)}? (❤️/yes, or 'offer ${dollars(max)}')`
+      : `someone just listed a ${itemName(listing)}, ${dollars(listing.priceCents)}, ${conditionText(listing.condition)} condition. want it? (❤️ or yes)`;
   await sendTo(buyer, text, { ref });
   // Don't clobber a half-finished listing draft: the ❤️ still works through the offer ref.
   if ((await db.getUser(buyer.id))?.state.kind !== "drafting_listing") await db.updateUser(buyer.id, { state: { kind: "choosing_result", listingIds: [listingId] } });
