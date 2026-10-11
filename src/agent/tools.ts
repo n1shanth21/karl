@@ -3,9 +3,11 @@
 
 import { MEETUP_SPOTS } from "../config";
 import { db } from "../db";
+import { recheckDeal } from "../flows/dispute";
 import { cancelWant, myStuff, pickResult, saveWant, searchAndShow } from "../flows/buy";
 import { cancelMatch, confirmHappened, setMeetup } from "../flows/match";
 import { counterOffer, makeOffer, respondToOffer } from "../flows/offers";
+import { acceptableName, formatName, NAME_RETRY } from "../flows/names";
 import { cancelDraft, confirmDraft, removeListing, updateDraft } from "../flows/sell";
 import type { User } from "../types";
 import { setItem, setStep, startRun } from "./activity";
@@ -14,14 +16,8 @@ import { CONDITIONS, type ToolSpec } from "./gemini";
 type Args = Record<string, unknown>;
 type Tool = ToolSpec & { run: (user: User, args: Args) => Promise<unknown> };
 
-const NAME_PATTERN = /^[a-z][a-z'-]{0,19}$/i;
-
-/** "maya chen" / "Maya" -> "Maya" (first word, capitalized); null when it doesn't look like a first name. */
-export function cleanFirstName(raw: string): string | null {
-  const word = raw.trim().split(/\s+/)[0];
-  if (!word || !NAME_PATTERN.test(word)) return null;
-  return word[0]!.toUpperCase() + word.slice(1);
-}
+/** "maya chen" / "Maya" -> "Maya"; null when it doesn't look like an acceptable first name (see flows/names.ts). */
+export const cleanFirstName = acceptableName;
 const bad = (error: string) => ({ error });
 const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
 const cents = (dollars: unknown) => (typeof dollars === "number" && dollars >= 0 ? Math.round(dollars * 100) : null);
@@ -42,7 +38,10 @@ export const tools: Tool[] = [
       const raw = str(args.first_name);
       if (!raw) return bad("first_name is required");
       const name = cleanFirstName(raw);
-      if (!name) return bad("that doesn't look like a first name (letters only, no digits or handles)");
+      if (!name) {
+        if (formatName(raw)) return { error: "name not accepted, don't save or repeat it", say: NAME_RETRY };
+        return bad("that doesn't look like a first name (letters only, no digits or handles)");
+      }
       await db.updateUser(user.id, { firstName: name });
       return { ok: true, first_name: name };
     },
@@ -207,6 +206,16 @@ export const tools: Tool[] = [
     async run(user, args) {
       const id = str(args.match_id);
       return id ? { reply: await cancelMatch(user, id) } : bad("match_id is required");
+    },
+  },
+  {
+    name: "recheck_deal",
+    description:
+      "The user says the OTHER person is wrong about a deal (e.g. 'he has it', 'she's lying') or wants an ended deal reopened because it did happen. Re-sends the question to the other person (max once per 6 hours per deal; ended deals are in my_stuff 'recently ended'). It never changes the deal itself: a cancelled deal only completes if the other person says yes. Report the result exactly.",
+    parameters: params({ match_id: matchId }, ["match_id"]),
+    async run(user, args) {
+      const id = str(args.match_id);
+      return id ? await recheckDeal(user, id) : bad("match_id is required");
     },
   },
   {

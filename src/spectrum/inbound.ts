@@ -5,10 +5,12 @@
 import { Emoji, type Content, type Message, type Space } from "spectrum-ts";
 import { runAgentTurn } from "../agent/loop";
 import { cleanFirstName } from "../agent/tools";
+import { acceptableName, formatName, NAME_RETRY } from "../flows/names";
 import { LIMITS } from "../config";
 import { db } from "../db";
 import { confirmDraft, draftFromPhoto, removeListing } from "../flows/sell";
 import { cancelWant, pickResult } from "../flows/buy";
+import { answerDispute, answerDisputeText, disputeState } from "../flows/dispute";
 import { parseOfferCents, parsePriceCents } from "../flows/format";
 import { confirmHappened, endDealsForBannedUser, proposeMatch } from "../flows/match";
 import { answerBid, counterOffer, makeOffer, respondToOffer } from "../flows/offers";
@@ -57,10 +59,10 @@ const NAME_INTRO = /^(?:i['’]?m|i am|it['’]?s|my name is|my name['’]s|call
 /** Only treat a reply as a name right after Karl asked for one (so "omw" mid-deal never becomes a name). */
 async function karlAskedForName(userId: string): Promise<boolean> {
   const lastOut = (await db.recentMessages(userId, 6)).findLast((m) => m.direction === "out");
-  return !!lastOut && /first name/i.test(lastOut.text);
+  return !!lastOut && /first name|what should i call you/i.test(lastOut.text);
 }
 
-export function parseNameReply(text: string): { name: string; rest: string } | null {
+export function parseNameReply(text: string): { name: string; rest: string; rejected?: boolean } | null {
   const trimmed = text.trim();
   const intro = NAME_INTRO.exec(trimmed);
   const [head = "", ...tail] = (intro ? intro[1]! : trimmed).split(/[,;.!?\n]+/);
@@ -70,7 +72,9 @@ export function parseNameReply(text: string): { name: string; rest: string } | n
   if (words.length > 2 || words.some((w) => NOT_NAMES.has(w.toLowerCase().replace(/[’]/g, "'")))) return null;
   // Two words with no "i'm" in front must look like a full name: "Maya Chen".
   if (words.length === 2 && !intro && !words.every((w) => /^[A-Z]/.test(w))) return null;
-  const name = cleanFirstName(words[0]!.replace(/[’]/g, "'"));
+  const word = words[0]!.replace(/[’]/g, "'");
+  const name = cleanFirstName(word);
+  if (!name && formatName(word)) return { name: "", rest: "", rejected: true }; // looks like a name but isn't acceptable
   return name ? { name, rest } : null;
 }
 
@@ -195,7 +199,12 @@ async function sendReply(user: User, reply: string, keep?: Ref): Promise<void> {
 
 /** Send the reply to an answered question. A "yes" to a spread offer only asks for a price, so that question stays open. */
 async function deliver(user: User, ref: Ref, yes: boolean, reply: string): Promise<void> {
-  await sendReply(user, reply, ref.kind === "offer" && ref.spread && yes ? ref : undefined);
+  let keep: Ref | undefined = ref.kind === "offer" && ref.spread && yes ? ref : undefined;
+  if (ref.kind === "checkin" && !yes) {
+    const dispute = await disputeState(ref.matchId); // a 👎 after the other side's claim opened a dispute: keep its question answerable
+    if (dispute?.phase === "asked" && dispute.userId === user.id) keep = { kind: "dispute", matchId: ref.matchId };
+  }
+  await sendReply(user, reply, keep);
 }
 
 /**
@@ -254,6 +263,7 @@ async function answerScheduling(user: User, text: string, threaded?: Ref): Promi
   const direct = asked(threaded) ?? asked(last);
   const ref = direct ?? asked(!last || BURIED_BY.includes(last.kind) ? await awaitingRef(user.id) : undefined);
   if (!ref || COMMAND.test(t) || !(await schedulingOpen(ref.matchId, ref))) return false; // locked/expired: it's chat, relay it
+  if (["asked", "disagreed"].includes((await disputeState(ref.matchId))?.phase ?? "")) return false; // "i handed it to you at the pit" is an argument, not a meetup spot
   if (["done", "off", "new_request"].includes(dealIntent(t) ?? "")) return false; // "deal's off" / "i'm selling a mac" isn't a time: routeMessage handles it
 
   if (ref.kind === "meetup_slot" && t.split(/\s+/).length <= 2 && (YES_TEXT.test(t) || NO_TEXT.test(t))) {
@@ -292,6 +302,8 @@ async function answerRef(user: User, ref: Ref, yes: boolean): Promise<string | n
       return respondToOffer(user, ref.matchId, yes);
     case "checkin":
       return confirmHappened(user, ref.matchId, yes);
+    case "dispute":
+      return answerDispute(user, ref.matchId, yes);
     case "relay":
       return null;
     case "availability": // a tapback on "when are you free?" means nothing; the typed answer is handled in answerScheduling
@@ -316,10 +328,12 @@ async function answerRef(user: User, ref: Ref, yes: boolean): Promise<string | n
 const enqueue = createBatcher<Part>(() => LIMITS.debounceMs, processBatch);
 
 async function processBatch(userId: string, parts: Part[]): Promise<void> {
-  const user = await db.getUser(userId); // reload: state may have changed while we waited
+  let user = await db.getUser(userId); // reload: state may have changed while we waited
   if (!user || user.optedOut || isBanned(user.id)) return; // a ban can land while the batch waits
+  if (user.firstName && !acceptableName(user.firstName)) user = await db.updateUser(user.id, { firstName: null }); // stored before the name filter: forget it so Karl asks again
+  const me = user;
   const space = parts[parts.length - 1]!.space;
-  await orApologize(user, () => space.responding(() => answerBatch(user, parts)));
+  await orApologize(me, () => space.responding(() => answerBatch(me, parts)));
 }
 
 async function answerBatch(user: User, parts: Part[]): Promise<void> {
@@ -335,6 +349,10 @@ async function answerBatch(user: User, parts: Part[]): Promise<void> {
   if (images.length) return draftPhoto(user, images, text);
   if (text && !user.firstName && !parts.some((p) => p.isNew) && (await karlAskedForName(user.id))) {
     const named = parseNameReply(text); // plain code: no Gemini needed for the common "Aayush" reply
+    if (named?.rejected) {
+      await sendTo(user, NAME_RETRY);
+      return;
+    }
     if (named) {
       user = await db.updateUser(user.id, { firstName: named.name });
       if (!named.rest) {
@@ -348,6 +366,10 @@ async function answerBatch(user: User, parts: Part[]): Promise<void> {
     }
   }
   if (text && (await answerPrice(user, text))) return;
+  if (text && !["done", "off", "new_request"].includes(dealIntent(text) ?? "")) {
+    const disputeReply = await answerDisputeText(user, text, parts.findLast((p) => p.ref)?.ref);
+    if (disputeReply) return sendReply(user, disputeReply);
+  }
   if (text && (await answerScheduling(user, text, parts.findLast((p) => p.ref)?.ref))) return;
   if (text && (await answerShortcut(user, text))) return;
   if (text) return answerText(user, text, parts.findLast((p) => p.matchId)?.matchId);

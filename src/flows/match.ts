@@ -5,9 +5,11 @@ import { db } from "../db";
 import { offeredWant, reopenOfferedWant } from "../agent/notifications";
 import { isSeedUser, sendTo } from "../spectrum/send";
 import type { Listing, Match, User } from "../types";
+import { logDealEnded, openDispute } from "./dispute";
 import { dollars, itemName } from "./format";
 import { holdAtPrice, keepAgreedPrice, releaseHold } from "./holds";
 import { meetupTimeProblem } from "./meetup";
+import { displayName } from "./names";
 import { askAvailability, SCHEDULING_HOLD_MS, suggestSlot } from "./scheduling";
 
 const NO_MATCH = "i can't find that one. text 'my stuff' to see what's active";
@@ -97,7 +99,7 @@ export async function acceptMatch(ctx: Ctx, by: "seller" | "buyer", agreedCents?
   await holdAtPrice(listing, agreedCents);
 
   const price = agreedCents === undefined ? "" : dollars(agreedCents);
-  const buyerName = buyer.firstName ?? "the buyer";
+  const buyerName = displayName(buyer, "the buyer");
   const said = price ? `said yes to ${price}` : "said yes";
   const forWhom = price ? `${buyerName} at ${price}` : buyerName;
   const reply = await askAvailability(
@@ -105,7 +107,7 @@ export async function acceptMatch(ctx: Ctx, by: "seller" | "buyer", agreedCents?
     by,
     by === "buyer"
       ? { actor: `deal at ${price}, the ${item} is held for you, numbers stay private, i'll pass messages along.`, other: `${buyerName} took ${price}! the ${item} is held for them.` }
-      : { actor: `held the ${item} for ${forWhom}, numbers stay private, i'll pass messages along.`, other: `${seller.firstName ?? "the seller"} ${said}, the ${item} is held for you.` },
+      : { actor: `held the ${item} for ${forWhom}, numbers stay private, i'll pass messages along.`, other: `${displayName(seller, "the seller")} ${said}, the ${item} is held for you.` },
   );
   return askNameIfMissing(ctx, by, reply);
 }
@@ -143,32 +145,46 @@ async function endMatch(ctx: Ctx, user: User, what: string): Promise<string> {
   await db.updateMatch(match.id, { status: "cancelled" });
   await releaseHold(listing);
   await reopenOfferedWant(buyer.id, listing.id);
+  await logDealEnded(ctx, `cancelled after ${displayName(user, "the other person")} ${what.includes("didn't happen") ? "said it didn't happen" : "backed out"}`);
 
   const isBuyer = user.id === buyer.id;
   const followUp = isBuyer ? "it's back up for sale." : "text me if you want me to look for another one.";
-  await sendTo(isBuyer ? seller : buyer, `${user.firstName ?? "the other person"} ${what} on the ${itemName(listing)}. ${followUp}`);
+  await sendTo(isBuyer ? seller : buyer, `${displayName(user, "the other person")} ${what} on the ${itemName(listing)}. ${followUp}`);
   return "ok, called it off. no hard feelings";
 }
 
-/** Answer to "did it happen?". Both yes → sold. No from either side → cancelled. */
-export async function confirmHappened(user: User, matchId: string, happened: boolean): Promise<string> {
-  const ctx = await load(matchId, user.id);
-  if (!ctx || !HANDOFF.includes(ctx.match.status)) return NO_MATCH;
-  if (!happened) return endMatch(ctx, user, "said the handoff didn't happen");
-
-  const { listing, buyer, seller } = ctx;
-  const isBuyer = user.id === buyer.id;
-  const match = await db.updateMatch(matchId, isBuyer ? { buyerConfirmed: true } : { sellerConfirmed: true });
-  if (!(match.buyerConfirmed && match.sellerConfirmed)) return "thanks! waiting to hear from the other side too";
-
-  await db.updateMatch(matchId, { status: "completed" });
+/** Both sides confirmed (or a dispute was settled): sold. Thanks go to both; returns the thanks for `by`. */
+export async function completeDeal(ctx: Ctx, by: User): Promise<string> {
+  const { match, listing, buyer, seller } = ctx;
+  await db.updateMatch(match.id, { buyerConfirmed: true, sellerConfirmed: true, status: "completed" });
   await db.updateListing(listing.id, { status: "sold" });
   keepAgreedPrice(listing.id);
+  await logDealEnded(ctx, "completed, both sides confirmed");
 
   const buyerThanks = `enjoy the ${itemName(listing)}! thanks for using karl`;
   const sellerThanks = `sold! thanks for selling your ${itemName(listing)} through me`;
+  const isBuyer = by.id === buyer.id;
   await sendTo(isBuyer ? seller : buyer, isBuyer ? sellerThanks : buyerThanks);
   return isBuyer ? buyerThanks : sellerThanks;
+}
+
+/**
+ * Answer to "did it happen?". Both yes → sold. No → cancelled, unless the other side already said it DID happen:
+ * then it's a dispute (see dispute.ts) and nothing is cancelled.
+ */
+export async function confirmHappened(user: User, matchId: string, happened: boolean): Promise<string> {
+  const ctx = await load(matchId, user.id);
+  if (!ctx || !HANDOFF.includes(ctx.match.status)) return NO_MATCH;
+  const isBuyer = user.id === ctx.buyer.id;
+  if (!happened) {
+    const otherClaimed = isBuyer ? ctx.match.sellerConfirmed : ctx.match.buyerConfirmed;
+    const cancel = () => endMatch(ctx, user, "said the handoff didn't happen");
+    return otherClaimed ? openDispute(ctx, user, cancel) : cancel();
+  }
+
+  const match = await db.updateMatch(matchId, isBuyer ? { buyerConfirmed: true } : { sellerConfirmed: true });
+  if (!(match.buyerConfirmed && match.sellerConfirmed)) return "thanks! waiting to hear from the other side too";
+  return completeDeal(ctx, user);
 }
 
 /** Either side backs out. */

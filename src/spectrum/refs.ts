@@ -10,6 +10,7 @@ export type Ref =
   | { kind: "counter"; matchId: string } // a price offer/counter-offer waiting for the other side's answer
   | { kind: "relay"; matchId: string } // a relayed message or handoff info for this match
   | { kind: "checkin"; matchId: string } // "did the sale happen?"
+  | { kind: "dispute"; matchId: string } // "<name> says you met and the X changed hands. 👍 if you got it, or reply 'didn't happen'"
   | { kind: "bid"; listingId: string; wantId: string } // to seller: "someone wants one around $15 (you're at $30). offer them a price?"
   | { kind: "still_active"; listingId?: string; wantId?: string } // "still selling X? / still looking for X?"
   | { kind: "availability"; matchId: string } // "when are you free to meet?" (any text reply = their availability)

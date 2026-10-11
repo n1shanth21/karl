@@ -3,6 +3,7 @@
 // name or a phone number typed into a title can never reach the public page.
 
 import { db } from "../db";
+import { acceptableName } from "../flows/names";
 import type { Stats } from "../types";
 
 const CACHE_MS = 3000;
@@ -11,7 +12,7 @@ let cached: { at: number; stats: Promise<Stats> } | null = null;
 /** "Maya Smith" → "Maya". Never more than one word. */
 export function firstNameOnly(name: string): string {
   const first = name.trim().split(/\s+/)[0] ?? "";
-  return first.slice(0, 20) || "someone";
+  return first.length <= 20 && acceptableName(first) ? first : "someone"; // a bad stored name never reaches the public page
 }
 
 /** Remove phone numbers, emails, @handles and links from a listing title. */

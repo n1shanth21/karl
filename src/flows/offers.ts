@@ -6,6 +6,7 @@ import { db } from "../db";
 import { sendTo } from "../spectrum/send";
 import type { Listing, User } from "../types";
 import { dollars, itemName } from "./format";
+import { displayName } from "./names";
 import { acceptMatch, loadMatch, openMatch, proposeMatch, respondToMatch, type Ctx } from "./match";
 
 export const MAX_COUNTERS = 4;
@@ -25,7 +26,7 @@ export const offerWaiter = (matchId: string): "buyer" | "seller" => pending.get(
 /** Forget the price on the table for a match that is over. */
 export const clearOffer = (matchId: string) => void pending.delete(matchId);
 
-const name = (user: User, fallback: string) => user.firstName ?? fallback;
+const name = displayName;
 
 /** Buyer offers `offerCents` instead of the asking price. Creates the match and asks the seller. */
 export async function makeOffer(buyer: User, listing: Listing, offerCents: number): Promise<string> {

@@ -9,6 +9,7 @@ import type { User } from "../types";
 import { describeWindows, overlapSlots, parseAvailability, type Slot, type Window } from "./availability";
 import { loadMatch, type Ctx } from "./match";
 import { describeTime, meetupTimeProblem } from "./meetup";
+import { displayName } from "./names";
 
 export const SCHEDULING_HOLD_MS = 12 * 3_600_000; // the hold must outlast an overnight "when are you free?"
 const ASK = "when are you free to meet in the next couple days? (like 'tmr after 2' or 'sat 11-3')";
@@ -63,7 +64,7 @@ export function takeFollowUp(userId: string): Ref | undefined {
 
 const other = (ctx: Ctx, side: Side) => (side === "buyer" ? ctx.seller : ctx.buyer);
 const mine = (ctx: Ctx, side: Side) => (side === "buyer" ? ctx.buyer : ctx.seller);
-const first = (user: User, fallback: string) => user.firstName ?? fallback;
+const first = displayName;
 const slotRef = (matchId: string, slot: Slot): Ref => ({ kind: "meetup_slot", matchId, start: slot.start.toISOString(), spot: slot.spot });
 const when = (slot: Slot, now: Date) => `${slot.spot} ${describeTime(slot.start, now)}`;
 

@@ -7,8 +7,10 @@ import { db } from "../db";
 import { onWantCreated, searchListings } from "../matching";
 import { sendTo } from "../spectrum/send";
 import type { Listing, User, Want } from "../types";
+import { recentlyEnded } from "./dispute";
 import { conditionText, dollars, itemName } from "./format";
 import { getActiveMatches, proposeMatch } from "./match";
+import { displayName } from "./names";
 import { photoAttachment } from "./photo";
 
 // Photon's deliverability guide says not to fire several messages within seconds, so results are spaced out.
@@ -94,6 +96,7 @@ export async function myStuff(user: User): Promise<string> {
     }),
   );
 
+  const ended = await recentlyEnded(user);
   const when = (at: Date) => at.toLocaleString("en-US", { timeZone: "America/New_York", weekday: "short", hour: "numeric", minute: "2-digit" });
   const parts = [
     listings.length && `listings: ${listings.map((l) => `[${l.id}] ${itemName(l)} ${dollars(l.priceCents)} ${l.status}`).join("; ")}`,
@@ -104,9 +107,10 @@ export async function myStuff(user: User): Promise<string> {
           const meetup = match.meetupSpot && match.meetupAt ? `, meetup ${match.meetupSpot} ${when(match.meetupAt)}` : "";
           const role = match.buyerId === user.id ? "buying" : "selling";
           const who = match.buyerId === user.id ? "from" : "to";
-          return `[${match.id}] ${role} ${listing ? itemName(listing) : "item"} ${who} ${other?.firstName ?? "someone"} (${match.status}${meetup})`;
+          return `[${match.id}] ${role} ${listing ? itemName(listing) : "item"} ${who} ${other ? displayName(other, "someone") : "someone"} (${match.status}${meetup})`;
         })
         .join("; ")}`,
+    ended.length && `recently ended (last 24h): ${ended.join("; ")}`,
   ].filter(Boolean);
   return parts.length ? parts.join("\n") : "nothing yet";
 }
