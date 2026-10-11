@@ -25,23 +25,44 @@
         ".gitignore",
         ".githooks/**",
         ".claude/**",
-        "tools/**"
+        "tools/**",
+        "bunfig.toml",
+        "tests/setup.ts"
       ]
     },
     "data": {
       "person": "Himagna",
       "github": "himagna16",
-      "paths": ["src/db/**", "src/matching/**", "db/**", "scripts/**", "tests/data/**", "team/himagna.md"]
+      "paths": [
+        "src/db/**",
+        "src/matching/**",
+        "db/**",
+        "scripts/**",
+        "tests/data/**",
+        "team/himagna.md"
+      ]
     },
     "backend": {
       "person": "Aarush",
       "github": "kathraniaarush-sudo",
-      "paths": ["src/safety/**", "src/jobs/**", "src/http/**", "tests/backend/**", "railway.json", "team/aarush.md"]
+      "paths": [
+        "src/safety/**",
+        "src/jobs/**",
+        "src/http/**",
+        "tests/backend/**",
+        "railway.json",
+        "team/aarush.md"
+      ]
     },
     "web": {
       "person": "Aayush",
       "github": "AayushKarwande",
-      "paths": ["web/**", "pitch/**", "seed/**", "team/aayush.md"]
+      "paths": [
+        "web/**",
+        "pitch/**",
+        "seed/**",
+        "team/aayush.md"
+      ]
     }
   }
 }

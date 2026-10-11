@@ -1,7 +1,7 @@
 // End-to-end: two phones (buyer Maya, seller Jordan) talk to Karl through the public entry
 // handleInbound() only. Real db (memory), real flows, real relay, real notifications.
 // Only Gemini is faked (scripted), so we can see exactly where Karl calls it.
-import { afterAll, beforeAll, expect, mock, setSystemTime, test } from "bun:test";
+import { afterAll, beforeAll, expect, mock, setSystemTime, spyOn, test } from "bun:test";
 import type { Content } from "@google/genai";
 import type { Message, Space } from "spectrum-ts";
 import { registerNotifications } from "../../src/agent/notifications";
@@ -10,11 +10,13 @@ import { bus } from "../../src/bus";
 import { LIMITS } from "../../src/config";
 import { db } from "../../src/db";
 import { setResultPauseForTests } from "../../src/flows/buy";
+import * as safety from "../../src/safety";
 import { handleInbound } from "../../src/spectrum/inbound";
 import { lookupRef } from "../../src/spectrum/refs";
 import type { User } from "../../src/types";
 import { fakeSpace, resetAll, sentTo } from "./helpers";
 
+spyOn(safety, "checkImage").mockResolvedValue({ action: "allow", banned: false }); // photo check is covered in photo-safety.test.ts
 registerNotifications(); // once: the bus is process-wide
 
 // Weekday noon in New York (Wed 2026-10-14, EDT), so "2:30pm" is a valid daytime meetup.

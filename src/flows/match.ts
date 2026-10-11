@@ -137,3 +137,29 @@ export async function cancelMatch(user: User, matchId: string): Promise<string> 
 export async function getActiveMatches(user: User): Promise<Match[]> {
   return db.activeMatchesForUser(user.id);
 }
+
+const FELL_THROUGH = "heads up, this one fell through. want me to keep looking?";
+
+/**
+ * A user was banned (explicit photo): end every deal they're in, take their listings down and close
+ * their wants. The other person gets one neutral text and never hears why.
+ */
+export async function endDealsForBannedUser(userId: string): Promise<void> {
+  const told = new Set<string>();
+  for (const match of await db.activeMatchesForUser(userId)) {
+    await db.updateMatch(match.id, { status: "cancelled" });
+    const listing = await db.getListing(match.listingId);
+    if (listing?.status === "held") await db.updateListing(listing.id, { status: "active" });
+    if (listing && match.sellerId === userId) await reopenOfferedWant(match.buyerId, listing.id);
+
+    const otherId = match.buyerId === userId ? match.sellerId : match.buyerId;
+    if (told.has(otherId)) continue;
+    told.add(otherId);
+    const other = await db.getUser(otherId);
+    if (other) await sendTo(other, FELL_THROUGH).catch((err) => console.error("[karl] couldn't tell other side", err));
+  }
+  for (const listing of await db.listingsBySeller(userId, ["active", "held"])) {
+    await db.updateListing(listing.id, { status: "removed" });
+  }
+  for (const want of await db.openWantsByBuyer(userId)) await db.updateWantStatus(want.id, "closed");
+}

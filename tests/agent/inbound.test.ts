@@ -9,6 +9,7 @@ import * as buy from "../../src/flows/buy";
 import * as match from "../../src/flows/match";
 import * as relay from "../../src/flows/relay";
 import * as sell from "../../src/flows/sell";
+import * as safety from "../../src/safety";
 import { handleInbound } from "../../src/spectrum/inbound";
 import { createBatcher } from "../../src/spectrum/debounce";
 import { lookupRef, rememberRef } from "../../src/spectrum/refs";
@@ -21,6 +22,7 @@ const runAgentTurn = spyOn(loop, "runAgentTurn");
 const routeMessage = spyOn(relay, "routeMessage");
 const draftFromPhoto = spyOn(sell, "draftFromPhoto");
 const confirmDraft = spyOn(sell, "confirmDraft");
+const checkImage = spyOn(safety, "checkImage");
 const respondToMatch = spyOn(match, "respondToMatch");
 const confirmHappened = spyOn(match, "confirmHappened");
 afterAll(() => mock.restore());
@@ -36,6 +38,7 @@ beforeEach(async () => {
   space = fakeSpace("space-inbound");
   runAgentTurn.mockResolvedValue("agent reply");
   routeMessage.mockResolvedValue("not_relay");
+  checkImage.mockResolvedValue({ action: "allow", banned: false });
 });
 
 const read = mock(async () => {});

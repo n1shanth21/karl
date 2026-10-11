@@ -9,9 +9,9 @@ import { LIMITS } from "../config";
 import { db } from "../db";
 import { confirmDraft, draftFromPhoto } from "../flows/sell";
 import { pickResult } from "../flows/buy";
-import { confirmHappened, proposeMatch, respondToMatch } from "../flows/match";
+import { confirmHappened, endDealsForBannedUser, proposeMatch, respondToMatch } from "../flows/match";
 import { routeMessage } from "../flows/relay";
-import { allowMessage } from "../safety";
+import { allowMessage, checkImage, isBanned } from "../safety";
 import type { User } from "../types";
 import { createBatcher } from "./debounce";
 import { lookupRef, type Ref } from "./refs";
@@ -127,6 +127,10 @@ export async function handleInbound(space: Space, message: Message): Promise<voi
   const found = await getOrCreateUser(phone, space.id);
   let user = found.user;
   if (user.spaceId !== space.id) user = await db.updateUser(user.id, { spaceId: space.id });
+  if (isBanned(user.id)) {
+    console.log(`[karl] banned ${last4(phone)}`); // no reply, nothing saved, "start" can't undo it
+    return;
+  }
 
   const isNew = await db.saveInbound({ userId: user.id, text: describe(content), platformMessageId: message.id });
   if (!isNew) return; // duplicate delivery
@@ -216,7 +220,7 @@ const enqueue = createBatcher<Part>(() => LIMITS.debounceMs, processBatch);
 
 async function processBatch(userId: string, parts: Part[]): Promise<void> {
   const user = await db.getUser(userId); // reload: state may have changed while we waited
-  if (!user || user.optedOut) return;
+  if (!user || user.optedOut || isBanned(user.id)) return; // a ban can land while the batch waits
   const space = parts[parts.length - 1]!.space;
   await orApologize(user, () => space.responding(() => answerBatch(user, parts)));
 }
@@ -249,7 +253,15 @@ async function answerBatch(user: User, parts: Part[]): Promise<void> {
 async function draftPhoto(user: User, images: Image[], caption: string): Promise<void> {
   const [photo] = images;
   if (images.length > 1) await sendTo(user, "one item at a time — starting with the first");
-  const result = await draftFromPhoto(user, { bytes: await photo!.read(), mimeType: photo!.mimeType }, caption || undefined);
+  const bytes = await photo!.read();
+  // Safety first: before HEIC conversion, saving the photo or any vision call.
+  const verdict = await checkImage(bytes, photo!.mimeType, user.id);
+  if (verdict.action === "block") {
+    await sendTo(user, verdict.reason ?? "can't use that photo, send one of just the item");
+    if (verdict.banned) await endDealsForBannedUser(user.id);
+    return;
+  }
+  const result = await draftFromPhoto(user, { bytes, mimeType: photo!.mimeType }, caption || undefined);
   await sendTo(user, result.reply, result.ok ? { ref: { kind: "draft", listingId: result.listing.id } } : {});
 }
 
