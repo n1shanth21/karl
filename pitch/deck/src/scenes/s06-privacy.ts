@@ -16,7 +16,7 @@ export const SELLER = new THREE.Vector3(HUB.x + 11, HUB.y, HUB.z);
 export const NODE_SCALE = 0.4;
 export const ROUTE_TO_SELLER = [new THREE.Vector3(BUYER.x + 3.2, 3.6, HUB.z + 0.8), new THREE.Vector3(HUB.x, 5.0, HUB.z + 0.8), new THREE.Vector3(SELLER.x - 3.2, 3.6, HUB.z + 0.8)].map((v) => v.setY(v.y + HUB.y));
 
-let wires: ReturnType<typeof drawableTube>[];
+export let wires: ReturnType<typeof drawableTube>[];
 export let nodesFade: { opacity: number }; // node labels
 let packet: ReturnType<typeof createPacket>;
 const trip = { u: 0 };

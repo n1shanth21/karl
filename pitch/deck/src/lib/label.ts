@@ -21,7 +21,8 @@ export function canvasPlane(w: number, h: number, draw: Draw): Label {
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 8;
-  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false });
+  // a touch under full white so labels stay crisp instead of blooming
+  const mat = new THREE.MeshBasicMaterial({ map: tex, color: 0xd2d2d2, transparent: true, depthWrite: false, toneMapped: false });
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
   const redraw = (fn: Draw) => {
     ctx.setTransform(PX, 0, 0, PX, 0, 0);

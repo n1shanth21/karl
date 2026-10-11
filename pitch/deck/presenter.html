@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Karl · presenter</title>
+    <link rel="icon" href="/karl-favicon.svg" />
+  </head>
+  <body>
+    <main id="presenter">
+      <header>
+        <div id="where">waiting for the deck…</div>
+        <div id="clock"></div>
+      </header>
+      <section id="now">
+        <div class="label">now</div>
+        <h1 id="title">Open the deck (index.html) and press P there, or just keep both open.</h1>
+        <div id="notes"></div>
+      </section>
+      <aside>
+        <div class="label">next</div>
+        <div id="preview"><img id="previewImg" alt="" /><div id="nextTitle"></div></div>
+        <div class="label">timer</div>
+        <div id="timer">0:00</div>
+        <div id="demoTimer"></div>
+        <div class="buttons">
+          <button data-key="ArrowLeft">← back</button>
+          <button data-key="ArrowRight">next →</button>
+          <button data-key="s">skip</button>
+          <button data-key="b">black</button>
+          <button data-key="d">demo backup</button>
+          <button id="timerReset">reset timer</button>
+        </div>
+      </aside>
+    </main>
+    <script type="module" src="/src/presenter.ts"></script>
+  </body>
+</html>

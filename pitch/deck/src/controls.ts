@@ -13,6 +13,8 @@ import { World } from "./world";
 //   F                          fullscreen
 //   Q                          quality high/low (low = no bloom, 1x pixels)
 //   H                          help + fps overlay
+//   P                          open the presenter window
+//   D                          (demo scene) play/stop the recorded demo backup
 
 export function bindControls(d: Director, w: World, extra: Record<string, () => void> = {}) {
   const black = document.getElementById("black") as HTMLElement;
@@ -32,9 +34,9 @@ export function bindControls(d: Director, w: World, extra: Record<string, () => 
     ...extra,
   };
 
-  window.addEventListener("keydown", (e) => {
-    if (e.metaKey || e.ctrlKey || e.altKey) return;
-    const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  // Returns true if the key did something. Also used for keys forwarded by the presenter window.
+  function handleKey(rawKey: string): boolean {
+    const key = rawKey.length === 1 ? rawKey.toLowerCase() : rawKey;
 
     if (pendingG !== "" || key === "g") {
       // "g" then two digits: jump to scenes past 9.
@@ -43,16 +45,20 @@ export function bindControls(d: Director, w: World, extra: Record<string, () => 
         pendingG += key;
         if (pendingG.length === 3) { d.jump(Number(pendingG.slice(1)) - 1); pendingG = ""; }
       } else pendingG = "";
-      e.preventDefault();
-      return;
+      return true;
     }
     if (/^\d$/.test(key)) {
       d.jump((key === "0" ? 10 : Number(key)) - 1);
-      e.preventDefault();
-      return;
+      return true;
     }
     const fn = go[key];
-    if (fn) { fn(); e.preventDefault(); }
+    if (fn) fn();
+    return !!fn;
+  }
+
+  window.addEventListener("keydown", (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (handleKey(e.key)) e.preventDefault();
   });
 
   // Help + fps overlay.
@@ -70,4 +76,5 @@ export function bindControls(d: Director, w: World, extra: Record<string, () => 
     requestAnimationFrame(loop);
   };
   loop();
+  return handleKey;
 }

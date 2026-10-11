@@ -86,6 +86,8 @@ export function toggleDemoBackup(onDemoScene: boolean) {
   if (backupOn) playClip("DemoBackup");
 }
 
+export const isDemoBackupOn = () => backupOn;
+
 // Leaving the demo scene always puts the QR back.
 export function resetDemoBackup() {
   if (backupOn) toggleDemoBackup(true);
