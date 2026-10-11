@@ -98,18 +98,31 @@ export async function acceptMatch(ctx: Ctx, by: "seller" | "buyer", agreedCents?
 
   const price = agreedCents === undefined ? "" : dollars(agreedCents);
   const buyerName = buyer.firstName ?? "the buyer";
-  if (by === "buyer") {
-    return askAvailability(ctx, "buyer", {
-      actor: `deal at ${price}, the ${item} is held for you, numbers stay private, i'll pass messages along.`,
-      other: `${buyerName} took ${price}! the ${item} is held for them.`,
-    });
-  }
   const said = price ? `said yes to ${price}` : "said yes";
   const forWhom = price ? `${buyerName} at ${price}` : buyerName;
-  return askAvailability(ctx, "seller", {
-    actor: `held the ${item} for ${forWhom}, numbers stay private, i'll pass messages along.`,
-    other: `${seller.firstName ?? "the seller"} ${said}, the ${item} is held for you.`,
-  });
+  const reply = await askAvailability(
+    ctx,
+    by,
+    by === "buyer"
+      ? { actor: `deal at ${price}, the ${item} is held for you, numbers stay private, i'll pass messages along.`, other: `${buyerName} took ${price}! the ${item} is held for them.` }
+      : { actor: `held the ${item} for ${forWhom}, numbers stay private, i'll pass messages along.`, other: `${seller.firstName ?? "the seller"} ${said}, the ${item} is held for you.` },
+  );
+  return askNameIfMissing(ctx, by, reply);
+}
+
+/**
+ * The relay label uses first names, so a nameless side is asked once, with "first name" in the text so the inbound
+ * name capture takes the answer. The accepting side's question rides on their reply; the other side gets its own text.
+ */
+async function askNameIfMissing(ctx: Ctx, by: "seller" | "buyer", reply: string): Promise<string> {
+  let out = reply;
+  for (const [side, user] of [["buyer", ctx.buyer], ["seller", ctx.seller]] as const) {
+    if (user.firstName) continue;
+    const q = `quick q, what first name should i show the ${side === "buyer" ? "seller" : "buyer"}?`;
+    if (side === by) out = `${reply} ${q}`;
+    else await sendTo(user, q);
+  }
+  return out;
 }
 
 /** Either side proposes a spot + time (the set_meetup tool). It only locks once the OTHER side agrees (👍 on the same slot). */

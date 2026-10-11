@@ -12,6 +12,7 @@ import { cancelWant, pickResult } from "../flows/buy";
 import { parseOfferCents, parsePriceCents } from "../flows/format";
 import { confirmHappened, endDealsForBannedUser, proposeMatch } from "../flows/match";
 import { answerBid, counterOffer, makeOffer, respondToOffer } from "../flows/offers";
+import { dealIntent } from "../flows/dealintent";
 import { COMMAND, routeMessage } from "../flows/relay";
 import { awaitingRef, onAvailability, onSlotVote, schedulingOpen, takeFollowUp } from "../flows/scheduling";
 import { markStillActive } from "../flows/staleness";
@@ -45,7 +46,9 @@ const NOT_NAMES = new Set(
     "help stop start cancel sell buy list thanks thank thx ty lol lmao haha cool nothing idk none nvm maybe please sorry " +
     "good fine great here new back not just there what why how who where when need want looking selling buying have got " +
     "interested a an the i me my you it its is am are do can any anyone someone something lamp fridge desk chair couch " +
-    "bike book books textbook textbooks tv monitor laptop microwave furniture stuff"
+    "bike book books textbook textbooks tv monitor laptop microwave furniture stuff tmr tomorrow tonight today anytime " +
+    "monday tuesday wednesday thursday friday saturday sunday mon tue tues wed thu thur thurs fri sat sun weekend weekends " +
+    "morning mornings afternoon evening night noon later whenever now asap soon after before omw otw outside ready coming arrived done free perfect awesome nice kk"
   ).split(" "),
 );
 const NAME_INTRO = /^(?:i['’]?m|i am|it['’]?s|my name is|my name['’]s|call me|this is)\s+(.+)$/i;
@@ -226,6 +229,7 @@ async function answerShortcut(user: User, text: string): Promise<boolean> {
   if (ref?.kind === "still_active" && words.length <= 8 && GONE_TEXT.test(text) && !(await db.activeMatchesForUser(user.id)).length) {
     return answerNow(user, ref, NEGATED.test(text.replace(GONE_PHRASES, ""))); // negated = they still have it / still want it
   }
+  if (["done", "off", "new_request"].includes(dealIntent(text) ?? "")) return false; // "deal's off" is not a yes to "deal"
   const yes = YES_TEXT.test(text.trim());
   if (words.length > 4 || (!yes && !NO_TEXT.test(text.trim()))) return false;
 
@@ -250,6 +254,7 @@ async function answerScheduling(user: User, text: string, threaded?: Ref): Promi
   const direct = asked(threaded) ?? asked(last);
   const ref = direct ?? asked(!last || BURIED_BY.includes(last.kind) ? await awaitingRef(user.id) : undefined);
   if (!ref || COMMAND.test(t) || !(await schedulingOpen(ref.matchId, ref))) return false; // locked/expired: it's chat, relay it
+  if (["done", "off", "new_request"].includes(dealIntent(t) ?? "")) return false; // "deal's off" / "i'm selling a mac" isn't a time: routeMessage handles it
 
   if (ref.kind === "meetup_slot" && t.split(/\s+/).length <= 2 && (YES_TEXT.test(t) || NO_TEXT.test(t))) {
     return answerNow(user, ref, YES_TEXT.test(t));
@@ -333,6 +338,10 @@ async function answerBatch(user: User, parts: Part[]): Promise<void> {
     if (named) {
       user = await db.updateUser(user.id, { firstName: named.name });
       if (!named.rest) {
+        if ((await db.activeMatchesForUser(user.id)).length) {
+          await sendTo(user, `thanks, ${named.name}!`);
+          return;
+        }
         await sendTo(user, `nice to meet you, ${named.name}! send me a photo to sell something, or tell me what you're looking for`);
         return;
       }
