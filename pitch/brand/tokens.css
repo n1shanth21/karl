@@ -1,0 +1,28 @@
+/* Karl brand tokens. Used by the pitch deck (pitch/deck) and safe to copy into web/. */
+:root {
+  /* color */
+  --karl-blue: #4B9CD3;       /* Carolina blue: primary accent, light, glow */
+  --karl-blue-deep: #2F7DB5;  /* shading, pressed states, 3D side faces */
+  --karl-navy: #0F1B2D;       /* background: the 3D world lives in this */
+  --karl-navy-deep: #0A1422;  /* vignette edges, cards on navy */
+  --karl-white: #FFFFFF;      /* type, chat bubbles, the k */
+  --karl-ok: #5BE08F;         /* safety only: allowed */
+  --karl-block: #FF6B6B;      /* safety only: blocked */
+  --karl-muted: rgba(255, 255, 255, 0.6);
+
+  /* type (fonts are bundled in pitch/deck, never loaded from the web) */
+  --karl-font-display: "Inter Display", "Inter", -apple-system, sans-serif;
+  --karl-font-body: "Inter", -apple-system, sans-serif;
+  --karl-font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --karl-tracking-display: -0.045em;
+
+  /* sizes on the 1920x1080 stage, readable from the back of a room */
+  --karl-size-hero: 120px;
+  --karl-size-title: 84px;
+  --karl-size-line: 52px;
+  --karl-size-small: 32px;
+
+  /* logo geometry (1024 grid) */
+  --karl-stroke: 60;          /* regular mark */
+  --karl-stroke-small: 96;    /* favicon / under 32px */
+}
