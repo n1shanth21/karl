@@ -7,6 +7,7 @@ import { sendTo } from "../spectrum/send";
 import type { Listing, User } from "../types";
 import { dollars, itemName } from "./format";
 import { displayName } from "./names";
+import { holdAtPrice } from "./holds";
 import { acceptMatch, loadMatch, openMatch, proposeMatch, respondToMatch, type Ctx } from "./match";
 
 export const MAX_COUNTERS = 4;
@@ -17,6 +18,21 @@ type Pending = { cents: number; from: "buyer" | "seller"; counters: number };
 // In-memory like refs: a restart forgets it, and a plain request then falls back to the listing price.
 const pending = new Map<string, Pending>();
 
+// A price change asked for AFTER the deal was agreed (accepted / meetup_set). Same shape, kept apart from the pre-deal offers.
+const repricing = new Map<string, Pending & { at: number }>();
+const AGREED = ["accepted", "meetup_set"];
+const REPRICE_TTL_MS = 30 * 60_000; // an ask nobody answered goes stale
+
+/** The open price-change ask for a match, forgotten once it is older than the TTL. */
+function openReprice(matchId: string) {
+  const ask = repricing.get(matchId);
+  if (ask && Date.now() - ask.at > REPRICE_TTL_MS) repricing.delete(matchId);
+  return repricing.get(matchId);
+}
+
+/** Who asked for a price change on an agreed deal that is still waiting for an answer. */
+export const repriceAsker = (matchId: string) => openReprice(matchId)?.from;
+
 /** Is there a price on the table for this match (an offer or counter)? */
 export const hasPendingOffer = (matchId: string) => pending.has(matchId);
 
@@ -24,7 +40,10 @@ export const hasPendingOffer = (matchId: string) => pending.has(matchId);
 export const offerWaiter = (matchId: string): "buyer" | "seller" => pending.get(matchId)?.from ?? "buyer";
 
 /** Forget the price on the table for a match that is over. */
-export const clearOffer = (matchId: string) => void pending.delete(matchId);
+export const clearOffer = (matchId: string) => {
+  pending.delete(matchId);
+  repricing.delete(matchId);
+};
 
 const name = displayName;
 
@@ -47,6 +66,7 @@ export async function makeOffer(buyer: User, listing: Listing, offerCents: numbe
 
 /** Yes/no to the price on the table, from whoever it was addressed to. Plain requests (no offer) use respondToMatch. */
 export async function respondToOffer(user: User, matchId: string, yes: boolean): Promise<string> {
+  if (openReprice(matchId)) return answerReprice(user, matchId, yes);
   const offer = pending.get(matchId);
   if (!offer) return respondToMatch(user, matchId, yes);
   const ctx = await loadMatch(matchId, user.id);
@@ -76,10 +96,12 @@ async function passOnOffer(ctx: Ctx, user: User, offer: Pending): Promise<string
 }
 
 /** Reply to the price on the table with a different price. Returns Karl's reply ("" if the reply was already sent). */
-export async function counterOffer(user: User, matchId: string, cents: number): Promise<string> {
+export async function counterOffer(user: User, matchId: string, cents: number, explicit = false): Promise<string> {
   const ctx = await loadMatch(matchId, user.id);
-  if (!ctx || ctx.match.status !== "proposed") return NO_MATCH;
   if (!Number.isInteger(cents) || cents <= 0) return "what price are you thinking?";
+  // After the deal is agreed a price can still be reopened, but only when someone asks for it (explicit) or is answering such an ask.
+  if (ctx && AGREED.includes(ctx.match.status) && (explicit || openReprice(matchId))) return repriceDeal(ctx, user, cents);
+  if (!ctx || ctx.match.status !== "proposed") return NO_MATCH;
   const { listing, buyer, seller } = ctx;
   const isBuyer = user.id === buyer.id;
   const offer = pending.get(matchId) ?? { cents: listing.priceCents, from: "buyer" as const, counters: 0 }; // plain request = asking price
@@ -101,6 +123,56 @@ export async function counterOffer(user: User, matchId: string, cents: number): 
     { ref: { kind: "counter", matchId } },
   );
   return `sent your ${dollars(cents)} to ${name(other, "them")}, i'll let you know`;
+}
+
+/** Renegotiating an agreed deal: ask the other side for `cents` instead of the current price. Returns Karl's reply to the asker. */
+async function repriceDeal(ctx: Ctx, user: User, cents: number): Promise<string> {
+  const { match, listing, buyer, seller } = ctx;
+  const isBuyer = user.id === buyer.id;
+  const other = isBuyer ? seller : buyer;
+  const open = openReprice(match.id);
+  const current = listing.priceCents;
+  if (open && (open.from === "buyer") !== isBuyer) { // answering their ask with a price
+    if (cents === open.cents) return answerReprice(user, match.id, true);
+    if (cents === current) return answerReprice(user, match.id, false);
+    if (open.counters >= MAX_COUNTERS) return `let's call it there. ${dollars(open.cents)} or stay at ${dollars(current)}? (yes or no)`;
+  } else if (open) {
+    return `still waiting on ${name(other, "them")} to answer your ${dollars(open.cents)}`;
+  }
+  if (cents === current) return `the ${itemName(listing)} is already ${dollars(current)}`;
+
+  repricing.set(match.id, { cents, from: isBuyer ? "buyer" : "seller", counters: open ? open.counters + 1 : 0, at: Date.now() });
+  await sendTo(
+    other,
+    `${name(user, isBuyer ? "the buyer" : "the seller")} asks if you'd do ${dollars(cents)} instead of ${dollars(current)} for the ${itemName(listing)}. (❤️/yes, no, or reply with a price)`,
+    { ref: { kind: "counter", matchId: match.id } },
+  );
+  return `asked them if they'd do ${dollars(cents)}, i'll let you know`;
+}
+
+/** Yes/no to a price change on an agreed deal. Yes: the deal's price becomes the asked one (undone if the deal falls through). No: it stays. */
+async function answerReprice(user: User, matchId: string, yes: boolean): Promise<string> {
+  const ask = openReprice(matchId);
+  const ctx = await loadMatch(matchId, user.id);
+  if (!ask || !ctx || !AGREED.includes(ctx.match.status)) {
+    repricing.delete(matchId);
+    return NO_MATCH;
+  }
+  const { listing, buyer, seller } = ctx;
+  const isBuyer = user.id === buyer.id;
+  const asker = isBuyer ? seller : buyer;
+  if ((ask.from === "buyer") === isBuyer) return `still waiting on ${name(asker, "them")} to answer your ${dollars(ask.cents)}`;
+
+  repricing.delete(matchId);
+  const item = itemName(listing);
+  const who = name(user, isBuyer ? "the buyer" : "the seller");
+  if (yes) {
+    await holdAtPrice(listing, ask.cents);
+    await sendTo(asker, `${who} said yes, the ${item} is ${dollars(ask.cents)} now`);
+    return `done, the ${item} is ${dollars(ask.cents)} now`;
+  }
+  await sendTo(asker, `${who} passed on ${dollars(ask.cents)}, so the ${item} stays at ${dollars(listing.priceCents)}`);
+  return `ok, it stays at ${dollars(listing.priceCents)}`;
 }
 
 /**

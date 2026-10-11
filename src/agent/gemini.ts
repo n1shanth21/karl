@@ -20,7 +20,11 @@ export interface GeminiApi {
   pickRelevant(request: string, titles: string[]): Promise<number[]>;
   /** Free text about when someone is free -> absolute windows (ISO 8601, New York time) + a campus spot if they named one. */
   extractAvailability(text: string, nowIso: string): Promise<{ windows: { startIso: string; endIso: string }[]; spot: string | null }>;
+  /** A mid-deal text that isn't obviously chat: is it for Karl (an instruction or question to the assistant) or for the other person? */
+  classifyDealMessage(text: string, ctx: DealMessageContext): Promise<{ to: "karl" | "counterpart" }>;
 }
+
+export type DealMessageContext = { item: string; counterpartName: string; role: "buyer" | "seller" };
 
 let client: GoogleGenAI | null = null;
 function ai(): GoogleGenAI {
@@ -194,18 +198,42 @@ async function extractAvailabilityOnce(model: string, text: string, nowIso: stri
   return { windows, spot: typeof out.spot === "string" && out.spot.trim() ? out.spot.trim() : null };
 }
 
+const ROUTE_SCHEMA = {
+  type: "object",
+  properties: { to: { type: "string", enum: ["karl", "counterpart"], description: "who the text is addressed to" } },
+  required: ["to"],
+};
+
+async function classifyDealMessageOnce(model: string, text: string, ctx: DealMessageContext): Promise<{ to: "karl" | "counterpart" }> {
+  const other = ctx.role === "buyer" ? "seller" : "buyer";
+  const prompt =
+    `A ${ctx.role} is mid-deal for a "${ctx.item}" with the ${other} (${ctx.counterpartName}). Their texts go to Karl, an assistant who normally forwards them to ${ctx.counterpartName}.\n` +
+    `Text: "${text}"\n` +
+    `Is this text addressed to Karl (asking or telling the assistant to do something, asking about their own listings or deals, or talking ABOUT ${ctx.counterpartName} in the third person) ` +
+    `or is it a message meant for ${ctx.counterpartName} (talking TO them: meetup logistics, questions about the item, small talk)? When unsure, answer "counterpart".`;
+  const res = await ai().models.generateContent({
+    model,
+    contents: prompt,
+    config: { responseMimeType: "application/json", responseJsonSchema: ROUTE_SCHEMA, thinkingConfig: { thinkingLevel: ThinkingLevel.LOW }, abortSignal: AbortSignal.timeout(3_000) },
+  });
+  const { to } = JSON.parse(res.text ?? "{}") as { to?: unknown };
+  if (to !== "karl" && to !== "counterpart") throw new Error("Gemini returned no routing");
+  return { to };
+}
+
 const real: GeminiApi = {
   describeItem: (jpeg, caption) => withRetry((model) => describeItemOnce(model, jpeg, caption), "describeItem"),
   chat: (req) => withRetry((model) => chatOnce(model, req), "chat"),
   pickRelevant: (request, titles) => withRetry((model) => pickRelevantOnce(model, request, titles), "pickRelevant"),
   extractAvailability: (text, nowIso) => withRetry((model) => extractAvailabilityOnce(model, text, nowIso), "extractAvailability"),
+  classifyDealMessage: (text, ctx) => classifyDealMessageOnce(currentModel(), text, ctx), // no retry: a relay must not wait
 };
 // Under `bun test` the real API is off limits (bun loads .env, so a missing fake would bill a real call).
 const offline = (name: string) => async (): Promise<never> => {
   throw new Error(`real Gemini ${name}() called from a test: fake it with setGeminiForTests`);
 };
 const base: GeminiApi =
-  process.env.NODE_ENV === "test" ? { describeItem: offline("describeItem"), chat: offline("chat"), pickRelevant: offline("pickRelevant"), extractAvailability: offline("extractAvailability") } : real;
+  process.env.NODE_ENV === "test" ? { describeItem: offline("describeItem"), chat: offline("chat"), pickRelevant: offline("pickRelevant"), extractAvailability: offline("extractAvailability"), classifyDealMessage: offline("classifyDealMessage") } : real;
 let impl: GeminiApi = base;
 
 export const gemini: GeminiApi = {
@@ -213,6 +241,7 @@ export const gemini: GeminiApi = {
   chat: (req) => impl.chat(req),
   pickRelevant: (request, titles) => impl.pickRelevant(request, titles),
   extractAvailability: (text, nowIso) => impl.extractAvailability(text, nowIso),
+  classifyDealMessage: (text, ctx) => impl.classifyDealMessage(text, ctx),
 };
 
 export function setGeminiForTests(fake: Partial<GeminiApi>): void {

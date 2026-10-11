@@ -99,7 +99,7 @@ test("selling the current item is chat, not a new request", async () => {
 test("the first relay tells the sender how to reach Karl, exactly once", async () => {
   await openDeal();
   await routeMessage(buyer, "does it have hdmi?");
-  expect(lastTextTo(buyer)).toBe("(passing your messages to the seller. say 'karl' to talk to me)");
+  expect(lastTextTo(buyer)).toBe("(i forward messages to the seller and 👍 them. say 'karl' or 'ask him…' to talk to me)");
   await routeMessage(buyer, "and a case?");
   await routeMessage(seller, "yes to both");
   const hints = (await seen(buyer)).filter((t) => t.includes("say 'karl'"));

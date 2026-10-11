@@ -46,3 +46,14 @@ export function parseOfferCents(text: string): number | null {
   if (verb) return toCents(verb);
   return HAGGLE.test(t) ? toCents((DOLLAR_PRICE.exec(t) ?? BUCKS_PRICE.exec(t))?.[1]) : null;
 }
+
+// A short sentence around a price, as an answer to a price question: "sure 60", "60 works", "55 is fine", "65 is my lowest".
+const REPLY_PRICE = /^(?:[a-z']+[,\s]+){0,1}\$?(\d{1,4}(?:\.\d{1,2})?)(?![\d:%.]|\s*(?:pm|am|min|mins|minutes|hours?|oz|th|st|nd|rd)\b)(?:\s+[a-z' ]+)?[.!?\s]*$/i;
+const TIME_WORD = /\b(?:at|by|around|after|before|until|till|on)\s+\$?\d/i;
+
+/** A short reply with a price in it ("sure 60", "60 works") -> cents, else null. Only for answering a price question. */
+export function parseReplyPriceCents(text: string): number | null {
+  const t = text.trim();
+  if (t.split(/\s+/).length > 6 || TIME_WORD.test(t)) return null;
+  return toCents(REPLY_PRICE.exec(t)?.[1]);
+}

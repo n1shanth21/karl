@@ -6,6 +6,7 @@ import { db } from "../db";
 import { recheckDeal } from "../flows/dispute";
 import { cancelWant, myStuff, pickResult, saveWant, searchAndShow } from "../flows/buy";
 import { cancelMatch, confirmHappened, setMeetup } from "../flows/match";
+import { messageCounterpart } from "../flows/relay";
 import { counterOffer, makeOffer, respondToOffer } from "../flows/offers";
 import { acceptableName, formatName, NAME_RETRY } from "../flows/names";
 import { cancelDraft, confirmDraft, removeListing, updateDraft } from "../flows/sell";
@@ -160,14 +161,25 @@ export const tools: Tool[] = [
   {
     name: "counter_offer",
     description:
-      "Answer a price offer or counter-offer with a different price ('how about $15'). Works for sellers answering a buyer's offer and for buyers answering a seller's counter. match_id is in my_stuff. Never promise a price the other side hasn't agreed to.",
+      "Answer a price offer or counter-offer with a different price ('how about $15'), or ask the other side for a new price on a deal that is already agreed ('ask him for $55'). Works for sellers answering a buyer's offer and for buyers answering a seller's counter. match_id is in my_stuff. Never promise a price the other side hasn't agreed to.",
     parameters: params({ match_id: matchId, price_dollars: price("the new price in dollars") }, ["match_id", "price_dollars"]),
     async run(user, args) {
       const id = str(args.match_id);
       const next = cents(args.price_dollars);
       if (!id || !next) return bad("match_id and a positive price_dollars are required");
-      const reply = await counterOffer(user, id, next);
+      const reply = await counterOffer(user, id, next, true);
       return reply ? { reply } : { reply: "", note: "capped: the user was already told to take the last price or pass; send nothing else" };
+    },
+  },
+  {
+    name: "message_counterpart",
+    description:
+      "Pass a question or note to the OTHER person in an accepted deal, when the user asks you to ask/tell them something ('ask him if it comes with the cable'). Write text as a short line in your own voice about what the user wants, e.g. \"wants to know if it comes with the cable\" (it is shown under the user's first name and the item). For a price ask use counter_offer instead. Only say it was passed on if the result says sent: true.",
+    parameters: params({ match_id: matchId, text: string("the short message for the other person, in your voice, no phone numbers or links") }, ["match_id", "text"]),
+    async run(user, args) {
+      const id = str(args.match_id);
+      const text = str(args.text);
+      return id && text ? await messageCounterpart(user, id, text) : bad("match_id and text are required");
     },
   },
   {

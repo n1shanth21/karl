@@ -1,15 +1,17 @@
 // Masked relay between buyer and seller DMs. PLAIN CODE routing, never Gemini. Owner: Nishanth.
 
 import { markdown } from "spectrum-ts";
+import { gemini } from "../agent/gemini";
 import { db } from "../db";
 import { scanRelayMessage } from "../safety";
 import { lastRefTo, sendTo } from "../spectrum/send";
 import type { Match, User } from "../types";
 import { dealIntent } from "./dealintent";
 import { disputeState } from "./dispute";
-import { itemName } from "./format";
+import { itemName, parseOfferCents } from "./format";
 import { displayName } from "./names";
 import { cancelMatch, completeDeal, confirmHappened, loadMatch } from "./match";
+import { counterOffer, repriceAsker } from "./offers";
 
 /** "handled" = the text ended the deal (done / off); it was dealt with here and is not forwarded. */
 export type RelayOutcome = "relayed" | "blocked" | "asked_which" | "not_relay" | "handled";
@@ -56,7 +58,7 @@ async function hintOnce(sender: User, match: Match, to: "buyer" | "seller"): Pro
   const seen = await db.findEvents("relay_hint", { userId: sender.id, payload: { matchId: match.id }, limit: 1 });
   if (seen.length) return;
   await db.logEvent("relay_hint", { userId: sender.id, payload: { matchId: match.id } });
-  await sendTo(sender, `(passing your messages to the ${to}. say 'karl' to talk to me)`);
+  await sendTo(sender, `(i forward messages to the ${to} and 👍 them. say 'karl' or 'ask him…' to talk to me)`);
 }
 
 /** "sale is done": count it for the sender and ask the other side to confirm (their 👍 completes the sale). */
@@ -94,14 +96,63 @@ async function callOff(sender: User, match: Match, item: string): Promise<"handl
   return "handled";
 }
 
+// Mid-deal text that is obviously for the other person never needs the classifier: short, a greeting/ack, or not about the
+// counterpart at all (text only belongs to Karl when it talks about "him/her/them", the name, or Karl).
+const CHAT_START = /^(hi|hey|hello|omw|otw|ok|okay|k|lol|lmao|yeah|yea|yep|haha|thanks|thank|thx|cool|sure|perfect|sounds)\b/i;
+const obviousChat = (text: string, counterpartName: string) =>
+  text.trim().split(/\s+/).length <= 4 ||
+  CHAT_START.test(text.trim()) ||
+  !new RegExp(String.raw`\b(?:he|she|they|him|her|them|his|their|karl|the (?:seller|buyer)|${counterpartName.toLowerCase().replace(/[^a-z]/g, "") || "$^"})\b`, "i").test(text);
+
+/** Longer text that isn't obviously chat: ask Gemini once who it's for. Any failure means "the other person" (the old behavior). */
+async function forKarl(text: string, ctx: { item: string; counterpartName: string; role: "buyer" | "seller" }): Promise<boolean> {
+  if (obviousChat(text, ctx.counterpartName)) return false;
+  try {
+    const { to } = await gemini.classifyDealMessage(text, ctx);
+    console.log(`[route] classifier says "${to}" for a ${ctx.role}'s mid-deal text`);
+    return to === "karl";
+  } catch (err) {
+    console.warn(`[route] classifier failed, relaying: ${err instanceof Error ? err.message : String(err)}`);
+    return false;
+  }
+}
+
+/** "ask him for 55": a price ask in a third-person instruction is a price change (counter or renegotiation). "tell him i'm outside" is passed on as-is; the rest ("ask him if...") is for the agent. */
+const MONEY = /\b(?:tell|text|message|offer)\s+\S+\s+(?:i(?:'ll| will| can)?\s+(?:do|offer)\s+)?\$?(\d{1,4}(?:\.\d{1,2})?)(?=\s*(?:$|[?!.,]|(?:instead|then|though|tho|pls|please|bucks|dollars)\b))/i;
+const PURE_FORWARD = /^(?:(?:hey|ok|pls|please|karl)[,\s]+)*(?:(?:can|could|would|will)\s+you\s+(?:please\s+)?)?(?:tell\s+\S+|let\s+\S+\s+know)[,\s]+(?:that\s+)?(\S.*)$/i;
+async function instruct(user: User, match: Match, text: string): Promise<RelayOutcome> {
+  const money = MONEY.exec(text)?.[1];
+  const cents = parseOfferCents(text) ?? (money ? Math.round(Number(money) * 100) : null);
+  const listing = cents ? await db.getListing(match.listingId) : null;
+  if (cents && listing && (cents !== listing.priceCents || repriceAsker(match.id))) {
+    const reply = await counterOffer(user, match.id, cents, true);
+    if (reply) await sendTo(user, reply);
+    return "handled";
+  }
+  const forward = PURE_FORWARD.exec(text.trim())?.[1];
+  return forward ? relay(user, match, forward) : "not_relay";
+}
+
+/** Tool for the agent: pass a message to the other side of a deal, in Karl's own words (same safety scan and label as a relay). */
+export async function messageCounterpart(user: User, matchId: string, text: string): Promise<{ sent: boolean; reason?: string }> {
+  const match = await db.getMatch(matchId);
+  if (!match || (match.buyerId !== user.id && match.sellerId !== user.id)) return { sent: false, reason: "no such deal" };
+  if (match.status !== "accepted" && match.status !== "meetup_set") return { sent: false, reason: "the seller hasn't accepted yet, so there's nobody to pass messages to" };
+  const outcome = await relay(user, match, text);
+  return outcome === "relayed" ? { sent: true } : { sent: false, reason: "blocked by the safety scan; the user was already told" };
+}
+
 /** Read the text for deal intent first: new requests and "karl" go to the agent, done/off close the deal, the rest is chat to forward. */
 async function routeToMatch(user: User, match: Match, text: string): Promise<RelayOutcome> {
-  const listing = await db.getListing(match.listingId);
+  const isBuyer = user.id === match.buyerId;
+  const [listing, other] = await Promise.all([db.getListing(match.listingId), db.getUser(isBuyer ? match.sellerId : match.buyerId)]);
   const sold = /^sold[.!\s]*$/i.test(text.trim()) && (await disputeState(match.id))?.phase === "disagreed"; // the word Karl asked them to text
-  const intent = sold ? "done" : dealIntent(text, listing?.title);
+  const intent = sold ? "done" : dealIntent(text, listing?.title, other?.firstName ?? undefined);
   if (intent === "new_request" || intent === "to_karl") return "not_relay";
   if (intent === "done" && listing) return markDone(user, match, itemName(listing));
   if (intent === "off" && listing) return callOff(user, match, itemName(listing));
+  if (intent === "instruct") return instruct(user, match, text);
+  if (intent === null && listing && other && (await forKarl(text, { item: itemName(listing), counterpartName: displayName(other, isBuyer ? "the seller" : "the buyer"), role: isBuyer ? "buyer" : "seller" }))) return "not_relay";
   return relay(user, match, text);
 }
 
@@ -132,7 +183,7 @@ export async function routeMessage(user: User, text: string, replyToMatchId?: st
   }
   if (matches.length === 1) return routeToMatch(user, matches[0]!, text);
   const loose = dealIntent(text);
-  if (loose === "new_request" || loose === "to_karl" || loose === "done" || loose === "off") return "not_relay"; // the agent asks which deal
+  if (loose === "new_request" || loose === "to_karl" || loose === "done" || loose === "off" || loose === "instruct") return "not_relay"; // the agent asks which deal
 
   const titles = await Promise.all(matches.map(async (m) => {
     const listing = await db.getListing(m.listingId);

@@ -11,10 +11,10 @@ import { db } from "../db";
 import { confirmDraft, draftFromPhoto, removeListing } from "../flows/sell";
 import { cancelWant, pickResult } from "../flows/buy";
 import { answerDispute, answerDisputeText, disputeState } from "../flows/dispute";
-import { parseOfferCents, parsePriceCents } from "../flows/format";
+import { parseOfferCents, parsePriceCents, parseReplyPriceCents } from "../flows/format";
 import { confirmHappened, endDealsForBannedUser, proposeMatch } from "../flows/match";
-import { answerBid, counterOffer, makeOffer, respondToOffer } from "../flows/offers";
-import { dealIntent } from "../flows/dealintent";
+import { answerBid, counterOffer, makeOffer, repriceAsker, respondToOffer } from "../flows/offers";
+import { isDealCommand } from "../flows/dealintent";
 import { COMMAND, routeMessage } from "../flows/relay";
 import { awaitingRef, onAvailability, onSlotVote, schedulingOpen, takeFollowUp } from "../flows/scheduling";
 import { markStillActive } from "../flows/staleness";
@@ -26,7 +26,7 @@ import { clearLastRef, last4, lastRefTo, rememberSpace, sendTo } from "./send";
 
 type Image = Extract<Content, { type: "attachment" }>;
 // One inbound message, reduced to what the batch needs.
-type Part = { space: Space; isNew: boolean; text?: string; image?: Image; matchId?: string; ref?: Ref };
+type Part = { space: Space; isNew: boolean; message?: Message; text?: string; image?: Image; matchId?: string; ref?: Ref };
 
 const INTRO =
   "hey, i'm karl 👋 i help unc students buy and sell stuff over text. send a photo to sell something, or tell me what you're looking for. (what's your first name btw?)";
@@ -179,7 +179,7 @@ export async function handleInbound(space: Space, message: Message): Promise<voi
     await orApologize(user, () => handleTapback(user, lookupRef(target.id), emoji));
     return;
   }
-  await enqueue(user.id, { space, isNew: found.isNew, ...readContent(content) });
+  await enqueue(user.id, { space, isNew: found.isNew, message, ...readContent(content) });
 }
 
 /** ❤️/👍 = yes, 👎 = no, on a message Karl sent. Anything else is ignored. */
@@ -207,6 +207,13 @@ async function deliver(user: User, ref: Ref, yes: boolean, reply: string): Promi
   await sendReply(user, reply, keep);
 }
 
+/** Is a price-change ask on this agreed deal waiting for THIS user's answer? */
+async function askedForPrice(user: User, matchId: string): Promise<boolean> {
+  const asker = repriceAsker(matchId);
+  const match = asker ? await db.getMatch(matchId) : null;
+  return !!match && (asker === "buyer") !== (user.id === match.buyerId);
+}
+
 /**
  * Plain-code haggling (no Gemini): a bare price after a request/counter is a counter-offer; "offer 10" or
  * "can you ask the seller for $10 instead?" after a single result/offer is a buyer offer.
@@ -219,7 +226,10 @@ async function answerPrice(user: User, text: string): Promise<boolean> {
     const cents = parsePriceCents(text); // seller names a price for the buyer who bid lower
     reply = cents === null ? null : await answerBid(user, ref, { priceCents: cents });
   } else if (ref.kind === "match_request" || ref.kind === "counter") {
-    const cents = parsePriceCents(text);
+    const cents = parsePriceCents(text) ?? parseReplyPriceCents(text); // "sure 60" and "55 is fine" are prices too
+    reply = cents === null ? null : await counterOffer(user, ref.matchId, cents);
+  } else if (ref.kind === "relay" && (await askedForPrice(user, ref.matchId))) {
+    const cents = parsePriceCents(text); // chat buried the question, but a bare price still answers it
     reply = cents === null ? null : await counterOffer(user, ref.matchId, cents);
   } else if (ref.kind === "offer" || (ref.kind === "result" && user.state.kind === "choosing_result" && user.state.listingIds.length <= 1)) {
     const cents = (ref.kind === "offer" && ref.spread ? parsePriceCents(text) : null) ?? parseOfferCents(text); // spread: a bare "20" is the price
@@ -238,7 +248,7 @@ async function answerShortcut(user: User, text: string): Promise<boolean> {
   if (ref?.kind === "still_active" && words.length <= 8 && GONE_TEXT.test(text) && !(await db.activeMatchesForUser(user.id)).length) {
     return answerNow(user, ref, NEGATED.test(text.replace(GONE_PHRASES, ""))); // negated = they still have it / still want it
   }
-  if (["done", "off", "new_request"].includes(dealIntent(text) ?? "")) return false; // "deal's off" is not a yes to "deal"
+  if (isDealCommand(text)) return false; // "deal's off" is not a yes to "deal"
   const yes = YES_TEXT.test(text.trim());
   if (words.length > 4 || (!yes && !NO_TEXT.test(text.trim()))) return false;
 
@@ -264,7 +274,7 @@ async function answerScheduling(user: User, text: string, threaded?: Ref): Promi
   const ref = direct ?? asked(!last || BURIED_BY.includes(last.kind) ? await awaitingRef(user.id) : undefined);
   if (!ref || COMMAND.test(t) || !(await schedulingOpen(ref.matchId, ref))) return false; // locked/expired: it's chat, relay it
   if (["asked", "disagreed"].includes((await disputeState(ref.matchId))?.phase ?? "")) return false; // "i handed it to you at the pit" is an argument, not a meetup spot
-  if (["done", "off", "new_request"].includes(dealIntent(t) ?? "")) return false; // "deal's off" / "i'm selling a mac" isn't a time: routeMessage handles it
+  if (isDealCommand(t)) return false; // "deal's off" / "i'm selling a mac" / "ask him for 55" isn't a time: routeMessage handles it
 
   if (ref.kind === "meetup_slot" && t.split(/\s+/).length <= 2 && (YES_TEXT.test(t) || NO_TEXT.test(t))) {
     return answerNow(user, ref, YES_TEXT.test(t));
@@ -366,13 +376,13 @@ async function answerBatch(user: User, parts: Part[]): Promise<void> {
     }
   }
   if (text && (await answerPrice(user, text))) return;
-  if (text && !["done", "off", "new_request"].includes(dealIntent(text) ?? "")) {
+  if (text && !isDealCommand(text)) {
     const disputeReply = await answerDisputeText(user, text, parts.findLast((p) => p.ref)?.ref);
     if (disputeReply) return sendReply(user, disputeReply);
   }
   if (text && (await answerScheduling(user, text, parts.findLast((p) => p.ref)?.ref))) return;
   if (text && (await answerShortcut(user, text))) return;
-  if (text) return answerText(user, text, parts.findLast((p) => p.matchId)?.matchId);
+  if (text) return answerText(user, text, parts.findLast((p) => p.matchId)?.matchId, parts.findLast((p) => p.text)?.message);
   await sendTo(user, "i can only read texts and photos right now");
 }
 
@@ -401,8 +411,18 @@ async function draftPhoto(user: User, images: Image[], caption: string): Promise
   await sendTo(user, result.reply, result.ok ? { ref: { kind: "draft", listingId: result.listing.id } } : {});
 }
 
-async function answerText(user: User, text: string, replyToMatchId?: string): Promise<void> {
+/** 👍 on the sender's own text = "it went to them". No reaction means Karl kept it and will answer. Never fails the turn. */
+async function ackRelayed(message?: Message): Promise<void> {
+  try {
+    await message?.react(Emoji.like);
+  } catch {
+    // a missing tapback is cosmetic
+  }
+}
+
+async function answerText(user: User, text: string, replyToMatchId?: string, message?: Message): Promise<void> {
   const outcome = await routeMessage(user, text, replyToMatchId);
+  if (outcome === "relayed") void ackRelayed(message);
   if (outcome !== "not_relay") return;
   const reply = await runAgentTurn(user, text);
   const followUp = takeFollowUp(user.id); // the agent's tool may have asked a scheduling question
