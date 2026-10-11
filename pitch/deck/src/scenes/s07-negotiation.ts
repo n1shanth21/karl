@@ -84,7 +84,7 @@ export const negotiation: Scene = {
 
     this.texts = [
       text(w, "Karl haggles for you.", { x: 140, y: 100, cls: "title" }),
-      text(w, "offer → counter → deal · a deal state machine: nothing commits until both sides say yes", { x: 140, y: 930, cls: "small" }),
+      text(w, "offer → counter → deal<br>a deal state machine: nothing commits until both sides say yes", { x: 140, y: 905, cls: "small" }),
     ];
   },
 
