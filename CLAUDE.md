@@ -107,5 +107,5 @@ Read the relevant doc page before using a Spectrum API you haven't used in this 
 - Secrets only in `.env` (gitignored). Keep `.env.example` updated with names, never values. Never ask the user to paste secrets into chat.
 - Log every inbound message, tool call and outbound message with phone masked to last 4.
 - Money in integer cents. Times as `Date`/timestamptz, displayed in America/New_York.
-- Tests: `tests/<role>/*.test.ts`, run with `bun test`. Mock Gemini in unit tests. Use `DB_MODE=memory` for tests unless testing postgres specifically.
+- Tests: `tests/<role>/*.test.ts`, run with `bun test`. `tests/setup.ts` (preloaded) forces the memory DB, terminal mode and NO real Gemini key, so `bun test` is safe even with a production `.env`. Postgres data tests: `TEST_DB=postgres DB_MODE=postgres bun test tests/data`. Live Gemini test: `RUN_LIVE_GEMINI=1`.
 - When you finish a task, tick it in your `team/<name>.md` and commit that file with your work.

@@ -49,22 +49,49 @@ function retryReason(err: unknown): string | number | null {
   return status === 429 || status === 500 || status === 503 ? status : null;
 }
 
-/** Run `attempt` (it must make a fresh request, with a fresh timeout, each call); retry ONCE on a retryable error. */
-export async function withRetry<T>(attempt: () => Promise<T>, label: string): Promise<T> {
+/** A daily/free-tier quota error: retrying the same model is pointless until tomorrow. */
+function isQuotaError(err: unknown): boolean {
+  const { status, message } = (err ?? {}) as { status?: unknown; message?: unknown };
+  return status === 429 && /RESOURCE_EXHAUSTED|quota/i.test(String(message ?? ""));
+}
+
+// Once the main model's quota runs out, use the backup model for a while instead of failing every message.
+let mainModelOutUntil = 0;
+const QUOTA_COOLDOWN_MS = 60 * 60_000;
+
+/** The model to use right now: the main one, or the backup while the main one is out of quota. */
+export function currentModel(now = Date.now()): string {
+  return now < mainModelOutUntil ? config.geminiFallbackModel : config.geminiModel;
+}
+
+/** Run `attempt(model)` (it must make a fresh request, with a fresh timeout, each call). One retry:
+ *  quota exhausted -> same request on the backup model; timeout/429/500/503 -> same model again. */
+export async function withRetry<T>(attempt: (model: string) => Promise<T>, label: string): Promise<T> {
+  const model = currentModel();
   try {
-    return await attempt();
+    return await attempt(model);
   } catch (err) {
+    if (isQuotaError(err) && model !== config.geminiFallbackModel) {
+      mainModelOutUntil = Date.now() + QUOTA_COOLDOWN_MS;
+      console.warn(`[gemini] ${label}: ${model} out of quota, switching to ${config.geminiFallbackModel}`);
+      return attempt(config.geminiFallbackModel);
+    }
     const reason = retryReason(err);
     if (reason === null) throw err;
     console.warn(`[gemini] ${label} retry after ${reason}`);
-    return attempt();
+    return attempt(model);
   }
 }
 
-async function describeItemOnce(jpeg: Uint8Array, caption?: string): Promise<ListingDraft | null> {
+/** Tests only: forget a quota cooldown. */
+export function resetModelCooldownForTests(): void {
+  mainModelOutUntil = 0;
+}
+
+async function describeItemOnce(model: string, jpeg: Uint8Array, caption?: string): Promise<ListingDraft | null> {
   const prompt = caption ? `${VISION_PROMPT}\nThe seller's caption: "${caption}"` : VISION_PROMPT;
   const res = await ai().models.generateContent({
-    model: config.geminiModel,
+    model,
     contents: [{ role: "user", parts: [{ inlineData: { mimeType: "image/jpeg", data: Buffer.from(jpeg).toString("base64") } }, { text: prompt }] }],
     config: { responseMimeType: "application/json", responseJsonSchema: DRAFT_SCHEMA, abortSignal: AbortSignal.timeout(TIMEOUT_MS) },
   });
@@ -81,9 +108,9 @@ async function describeItemOnce(jpeg: Uint8Array, caption?: string): Promise<Lis
   };
 }
 
-async function chatOnce(req: { system: string; contents: Content[]; tools: ToolSpec[] }): Promise<Content> {
+async function chatOnce(model: string, req: { system: string; contents: Content[]; tools: ToolSpec[] }): Promise<Content> {
   const res = await ai().models.generateContent({
-    model: config.geminiModel,
+    model,
     contents: req.contents,
     config: {
       systemInstruction: req.system,
@@ -103,13 +130,13 @@ const RELEVANT_SCHEMA = {
   required: ["indices"],
 };
 
-async function pickRelevantOnce(request: string, titles: string[]): Promise<number[]> {
+async function pickRelevantOnce(model: string, request: string, titles: string[]): Promise<number[]> {
   const list = titles.map((t, i) => `${i}: ${t}`).join("\n");
   const prompt =
     `A buyer texted: "${request}"\nWhich of these listings ARE the item they asked for? Same kind of item only: ` +
     `a desk fan is not a desk lamp, but a mini fridge is "something to keep drinks cold". Return the 0-based indices, or an empty list if none.\n${list}`;
   const res = await ai().models.generateContent({
-    model: config.geminiModel,
+    model,
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -124,9 +151,9 @@ async function pickRelevantOnce(request: string, titles: string[]): Promise<numb
 }
 
 const real: GeminiApi = {
-  describeItem: (jpeg, caption) => withRetry(() => describeItemOnce(jpeg, caption), "describeItem"),
-  chat: (req) => withRetry(() => chatOnce(req), "chat"),
-  pickRelevant: (request, titles) => withRetry(() => pickRelevantOnce(request, titles), "pickRelevant"),
+  describeItem: (jpeg, caption) => withRetry((model) => describeItemOnce(model, jpeg, caption), "describeItem"),
+  chat: (req) => withRetry((model) => chatOnce(model, req), "chat"),
+  pickRelevant: (request, titles) => withRetry((model) => pickRelevantOnce(model, request, titles), "pickRelevant"),
 };
 // Under `bun test` the real API is off limits (bun loads .env, so a missing fake would bill a real call).
 const offline = (name: string) => async (): Promise<never> => {

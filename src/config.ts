@@ -21,7 +21,9 @@ export const config = {
   dbMode: dbMode as "memory" | "postgres",
   databaseUrl: process.env.DATABASE_URL ?? "",
   geminiApiKey: process.env.GEMINI_API_KEY ?? "", // checked where used, so terminal mode boots without it
-  geminiModel: env("GEMINI_MODEL", "gemini-3.8-flash"),
+  geminiModel: env("GEMINI_MODEL", "gemini-3.5-flash-lite"),
+  // Used automatically when the main model hits its daily quota (free tier: as low as 20 requests/day).
+  geminiFallbackModel: env("GEMINI_FALLBACK_MODEL", "gemini-3.5-flash-lite"),
   geminiEmbedModel: env("GEMINI_EMBED_MODEL", "gemini-embedding-2"),
   port: Number(env("PORT", "3000")),
   dashboardOrigin: env("DASHBOARD_ORIGIN", "http://localhost:3001"),
