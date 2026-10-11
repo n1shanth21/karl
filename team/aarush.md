@@ -61,39 +61,53 @@ Read src/safety/index.ts and src/types.ts first. Show me a numbered plan and wai
 ```
 
 ## Requests (things I need from others)
-- **Nishanth (PLAN.md):** access-test result is already known from my Photon project (tested 2026-10-10). Registered phone → reply works. Unregistered phone → Photon auto-replies "didn't recognize your number"; nothing reaches our code. Also, each user is assigned **their own** line ("Texts on" in Photon → Users), so there's no single Karl number for the dashboard QR or a Discord post. Please record this and decide: add people by hand (max 100 users), or I build `POST /signup` in B3.
+- ~~**Nishanth (PLAN.md):** access-test result is already known from my Photon project (tested 2026-10-10). Registered phone → reply works. Unregistered phone → Photon auto-replies "didn't recognize your number"; nothing reaches our code. Also, each user is assigned **their own** line ("Texts on" in Photon → Users), so there's no single Karl number for the dashboard QR or a Discord post. Please record this and decide: add people by hand (max 100 users), or I build `POST /signup` in B3.~~ Done: `/signup` is live.
 - **Himagna:** I already have a Tiger Data service (pgvector 0.8.7 verified). I'll DM you the `DATABASE_URL` so we use one database instead of two.
-- **Nishanth (after Merge #1):** wire in `isBanned` + `checkImage`. Paste this into Claude Code on the `agent` branch:
+- **Nishanth (HANDOFF, two fixes in your files):** paste this into Claude Code on the `agent` branch:
   ```
   Read CLAUDE.md and team/nishanth.md. I'm Nishanth on the agent branch.
-  Task: wire Aarush's new image-safety + ban functions into the inbound pipeline and photo handling.
-  Show me a numbered plan first and wait for my OK.
+  Two fixes from Aarush (backend). Show me a numbered plan first and wait for my OK.
 
-  Aarush added these to the safety contract (src/safety/index.ts, already merged to main):
+  FIX 1: production bug, one slow Gemini response kills the turn.
+  Prod log 2026-10-10 19:52:22 EDT: "[agent] turn failed: DOMException" = the 20 s abort fired.
+  Aayush replied with his name during onboarding and got FALLBACK. The same conversation works
+  locally in ~3 s (memory AND postgres), so it's a latency spike, not a logic bug.
+  - src/agent/gemini.ts chat(): move the generateContent call into chatOnce(req), then
+      async function chat(req) {
+        try { return await chatOnce(req); }
+        catch (err) {
+          const e = err as { name?: string; status?: number };
+          const retryable = e?.name === "TimeoutError" || e?.name === "AbortError" || [429, 500, 503].includes(Number(e?.status));
+          if (!retryable) throw err;
+          console.warn(`[gemini] chat retry after ${e?.name ?? e?.status}`);
+          return chatOnce(req); // fresh AbortSignal.timeout inside chatOnce
+        }
+      }
+  - src/agent/loop.ts:50: log one readable line so Railway search shows the reason:
+      console.error("[agent] turn failed:", err instanceof Error ? `${err.name}: ${err.message}` : err);
+  - Test with the fake Gemini: first chat call throws a TimeoutError, second succeeds -> normal reply;
+    a non-retryable error still gives FALLBACK; never more than 2 attempts.
 
-    // true if this user was banned for sending an explicit photo (in-memory, resets on restart)
-    isBanned(userId: string): boolean
+  FIX 2: photo safety is not wired (checkImage / isBanned are on main but nothing calls them).
+    isBanned(userId: string): boolean            // explicit-photo ban, in-memory
+    checkImage(bytes, mimeType, userId): Promise<{ action: "allow" | "block"; reason?: string; banned: boolean }>
+      // explicit -> block AND bans the user itself; suggestive/Gemini failed -> block, no ban
+  In src/spectrum/inbound.ts:
+  1. Right after getOrCreateUser() + the spaceId update, BEFORE db.saveInbound, optedOut/start/
+     stop/help and allowMessage:
+       if (isBanned(user.id)) { console.log(`[karl] banned ${last4(phone)}`); return; }
+     No reply, no Gemini. "start" must NOT undo a ban.
+  2. In draftPhoto(), before draftFromPhoto (so before HEIC conversion, savePhoto, vision):
+       const bytes = await photo!.read();
+       const v = await checkImage(bytes, photo!.mimeType, user.id);
+       if (v.action === "block") { await sendTo(user, v.reason!); return; }
+     then pass the same bytes to draftFromPhoto. checkImage reads HEIC directly.
+  3. If v.banned: for each db.activeMatchesForUser(user.id) set status "cancelled", put a "held"
+     listing back to "active", and text the OTHER person something neutral like "heads up, this one
+     fell through. want me to keep looking?" Never say why or reveal anything about the banned user.
+  Tests in tests/agent (mock src/safety): banned user gets no reply and nothing saved; blocked photo
+  -> sender gets v.reason, savePhoto/draftFromPhoto never called; allowed photo drafts as before;
+  explicit photo with an active match -> cancelled, listing active, other person told once.
 
-    // Gemini checks the photo. If explicit (nudity/sexual/gore/hate), it bans the user itself.
-    // reason is in Karl's voice; send it to the SENDER only.
-    checkImage(bytes: Uint8Array, mimeType: string, userId: string):
-      Promise<{ action: "allow" | "block"; reason?: string; banned: boolean }>
-
-  Where to call them:
-  1. Inbound pipeline (src/spectrum/inbound.ts): right after we resolve the user from the
-     message, if isBanned(user.id) → log it (phone masked with last4) and return.
-     No reply, no Gemini call, nothing else. This goes before "stop"/"help" handling too.
-  2. Every inbound image attachment, BEFORE db.savePhoto, before Gemini vision drafts a
-     listing, and before the relay forwards it to the other person:
-       const v = await checkImage(bytes, mimeType, user.id)
-       if (v.action === "block") → send v.reason to the sender, do NOT save/draft/forward
-       the photo, and stop handling this message.
-     Call it on the original bytes (HEIC is fine, Gemini reads it).
-  3. If v.banned and the user has an active match, cancel the match, put the listing back
-     to active, and tell the other person something neutral like "heads up, this one fell
-     through. want me to keep looking?" Never say why or show the banned user's info.
-
-  Tests: mock checkImage/isBanned in tests/agent. Cover: banned user gets no reply;
-  blocked photo is never saved or relayed; allowed photo continues normally.
-  Then bun run check && bun test, commit, push.
+  Then bun run check && bun test, commit, push, and merge origin/backend + origin/agent into main.
   ```
